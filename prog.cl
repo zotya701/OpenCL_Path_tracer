@@ -38,6 +38,7 @@ Hit triangle_intersect(Triangle tri, Ray ray){
     if( dot( cross((tri.r2-tri.r1),(p-tri.r1)) , N) >= 0){
         if( dot( cross((tri.r3-tri.r2),(p-tri.r2)) , N)>=0){
             if( dot( cross((tri.r1-tri.r3),(p-tri.r3)) , N)>=0){
+                printf("%f\n",t);
                 Hit hit=cons_Hit(t,p,N);
                 hit.mat=tri.mat;
                 return hit;
@@ -107,9 +108,10 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
     Hit hit=first_intersect(tris, tris_size, rays[id]);
     hits[id]=hit;
 
-    Ray old_ray=rays[id];
-    Ray new_ray=new_ray_diffuse(hit);
-    rays[id]=new_ray;
+    //Ray old_ray=rays[id];
+    //Ray new_ray=new_ray_diffuse(hit);
+    //rays[id]=new_ray;
 
-    printf("id=%02d \t%f %d\n", id, hit.mat.n, hit.mat.type);
+    //printf("id=%02d \t%f %d\n", id, hit.mat.n, hit.mat.type);
+    //printf("rays[%03d]=\tP=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n", id, rays[id].P.x, rays[id].P.y, rays[id].P.z, rays[id].D.x, rays[id].D.y, rays[id].D.z);
 }
