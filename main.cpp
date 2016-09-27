@@ -105,7 +105,7 @@ public:
         Hit* hits=new Hit[rays_size];
         
         for(int i=0;i<rays_size;++i)
-        rays[i]=cons_Ray((cl_float3){-0.99f+i/(float)rays_size, -0.99f+i/(float)rays_size, -10.0f}, (cl_float3){0.0f, 0.0f, 1.0f});
+            rays[i]=cons_Ray((cl_float3){-0.99f+i/(float)rays_size, -0.99f+i/(float)rays_size, -10.0f}, (cl_float3){0.0f, 0.0f, 1.0f});
         
         //write data to the device
         queue.enqueueWriteBuffer(buffer_rays,CL_TRUE,0,sizeof(Ray)*rays_size,rays);
