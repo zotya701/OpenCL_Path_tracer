@@ -4,7 +4,7 @@
 #include <CL/cl.hpp>
 #include <ctime>
 
-const int screenWidth=10;
+const int screenWidth=1;
 const int screenHeight=10;
 
 typedef struct{
@@ -98,7 +98,7 @@ public:
         queue.enqueueWriteBuffer(buffer_tris,CL_TRUE,0,sizeof(Triangle)*tris_size,&tris[0]);
     }
     void trace_rays(){
-        cl::Buffer buffer_rays(context,CL_MEM_READ_ONLY,sizeof(Ray)*rays_size);
+        cl::Buffer buffer_rays(context,CL_MEM_READ_WRITE,sizeof(Ray)*rays_size);
         cl::Buffer buffer_hits(context,CL_MEM_WRITE_ONLY ,sizeof(Hit)*rays_size);
         
         Ray* rays=new Ray[rays_size];
@@ -126,7 +126,7 @@ public:
         double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
         printf("%f\n", elapsed_secs);
         //for(int i=0;i<rays_size;++i){
-        for(int i=0;i<50;++i){
+        for(int i=0;i<10;++i){
             Hit hit=hits[i];
             printf("hits[%03d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n", i, hit.t, hit.P.s[0], hit.P.s[1], hit.P.s[2], hit.N.s[0], hit.N.s[1], hit.N.s[2]);
         }
