@@ -4,38 +4,34 @@
 #include <CL/cl.hpp>
 #include <ctime>
 
-const int screenWidth=640;
-const int screenHeight=480;
- 
+const int screenWidth=10;
+const int screenHeight=10;
+
+typedef struct{
+    cl_float3 kd,ks,emission,F0;    //diffuse, specular, emission, Fresnel
+    float n, shininess, glossiness;
+    int type;   //0-diffuse, 1-x, 2-x, 3-Emitter
+} Material;
+
 typedef struct {
-    cl_float3 P,D;
+    cl_float3 P,D;  //origo and direction
 } Ray;
 Ray cons_Ray(cl_float3 p, cl_float3 d){
     Ray ray; ray.P=p; ray.D=d; return ray;
 }
-Ray init_Ray(){
-    return cons_Ray((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 1.0f});
-}
 
 typedef struct{
-    cl_float t;
-    cl_float3 P,N;
+    cl_float t;         //time
+    cl_float3 P,N;      //hitposition and normal vector in hitposition
+    Material mat;  //material of the triangle
 } Hit;
-Hit cons_Hit(cl_float t, cl_float3 p, cl_float3 n){
-    Hit hit; hit.t=t; hit.P=p; hit.N=n; return hit;
-}
-Hit init_Hit(){
-    return cons_Hit((cl_float){-1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.0f, 0.0f, 0.0f});
-}
 
 typedef struct {
-    cl_float3 r1,r2,r3,N;
+    cl_float3 r1,r2,r3,N;   //vertices of the triangle and it's normal vector
+    Material mat;
 } Triangle;
 Triangle cons_Triangle(cl_float3 r1, cl_float3 r2, cl_float3 r3, cl_float3 n){
     Triangle tri; tri.r1=r1; tri.r2=r2; tri.r3=r3; tri.N=n; return tri;
-}
-Triangle init_Triangle(){
-    return cons_Triangle((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, -1.0f});
 }
 
 class Scene{

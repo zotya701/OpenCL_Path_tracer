@@ -9,19 +9,19 @@ CND_DISTDIR=dist
 # Debug configuration
 CND_PLATFORM_Debug=MinGW_64-Windows
 CND_ARTIFACT_DIR_Debug=dist/Debug/MinGW_64-Windows
-CND_ARTIFACT_NAME_Debug=test
-CND_ARTIFACT_PATH_Debug=dist/Debug/MinGW_64-Windows/test
+CND_ARTIFACT_NAME_Debug=opencl_path_tracer
+CND_ARTIFACT_PATH_Debug=dist/Debug/MinGW_64-Windows/opencl_path_tracer
 CND_PACKAGE_DIR_Debug=dist/Debug/MinGW_64-Windows/package
-CND_PACKAGE_NAME_Debug=test.tar
-CND_PACKAGE_PATH_Debug=dist/Debug/MinGW_64-Windows/package/test.tar
+CND_PACKAGE_NAME_Debug=openclpathtracer.tar
+CND_PACKAGE_PATH_Debug=dist/Debug/MinGW_64-Windows/package/openclpathtracer.tar
 # Release configuration
 CND_PLATFORM_Release=MinGW_64-Windows
 CND_ARTIFACT_DIR_Release=dist/Release/MinGW_64-Windows
-CND_ARTIFACT_NAME_Release=test
-CND_ARTIFACT_PATH_Release=dist/Release/MinGW_64-Windows/test
+CND_ARTIFACT_NAME_Release=opencl_path_tracer
+CND_ARTIFACT_PATH_Release=dist/Release/MinGW_64-Windows/opencl_path_tracer
 CND_PACKAGE_DIR_Release=dist/Release/MinGW_64-Windows/package
-CND_PACKAGE_NAME_Release=test.tar
-CND_PACKAGE_PATH_Release=dist/Release/MinGW_64-Windows/package/test.tar
+CND_PACKAGE_NAME_Release=openclpathtracer.tar
+CND_PACKAGE_PATH_Release=dist/Release/MinGW_64-Windows/package/openclpathtracer.tar
 #
 # include compiler specific variables
 #

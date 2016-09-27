@@ -1,17 +1,18 @@
 
+typedef struct{
+    float3 kd,ks,emission,F0;
+    float n, shininess, glossiness;
+    int type;
+} Material;
+
 typedef struct {
     float3 P,D;
 } Ray;
-Ray cons_Ray(float3 p, float3 d){
-    Ray ray; ray.P=p; ray.D=d; return ray;
-}
-Ray init_Ray(){
-    return cons_Ray((float3)(0.0f, 0.0f, 0.0f), (float3)(0.0f, 0.0f, 1.0f));
-}
 
 typedef struct{
     float t;
     float3 P,N;
+    Material mat;
 } Hit;
 Hit cons_Hit(float t, float3 p, float3 n){
     Hit hit; hit.t=t; hit.P=p; hit.N=n; return hit;
@@ -22,36 +23,26 @@ Hit init_Hit(){
 
 typedef struct {
     float3 r1,r2,r3,N;
+    Material mat;
 } Triangle;
-Triangle cons_Triangle(float3 r1, float3 r2, float3 r3, float3 n){
-    Triangle tri; tri.r1=r1; tri.r2=r2; tri.r3=r3; tri.N=n; return tri;
-}
-Triangle init_Triangle(){
-    return cons_Triangle((float3)(0.0f, 0.0f, 0.0f), (float3)(0.0f, 0.0f, 0.0f), (float3)(0.0f, 0.0f, 0.0f), (float3)(0.0f, 0.0f, -1.0f));
-}
 
 Hit triangle_intersect(Triangle tri, Ray ray){
     float3 P=ray.P;
     float3 V=ray.D;
     float3 N=tri.N;
     float t=dot((tri.r1-P),N)/dot(V,N);
-    Hit hit=init_Hit();
     if(t<0){
-        hit.t=t;
-        return hit;
+        return init_Hit();
     }
     float3 p=P+V*t;
     if( dot( cross((tri.r2-tri.r1),(p-tri.r1)) , N) >= 0){
         if( dot( cross((tri.r3-tri.r2),(p-tri.r2)) , N)>=0){
             if( dot( cross((tri.r1-tri.r3),(p-tri.r3)) , N)>=0){
-                hit.t=t;
-                hit.P=p;
-                hit.N=N;
-                return hit;
+                return cons_Hit(t,p,N);
             }
         }
     }
-    return hit;
+    return init_Hit();
 }
 
 void kernel trace_ray(global const Triangle* tris, const int tris_size, global const Ray* rays, global Hit* hits){

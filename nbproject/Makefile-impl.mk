@@ -24,7 +24,7 @@ CLEAN_SUBPROJECTS=${CLEAN_SUBPROJECTS_${SUBPROJECTS}}
 
 
 # Project Name
-PROJECTNAME=test
+PROJECTNAME=OpenCL_Path_tracer
 
 # Active Configuration
 DEFAULTCONF=Debug
