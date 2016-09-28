@@ -42,8 +42,8 @@ OBJECTFILES= \
 CFLAGS=
 
 # CC Compiler Flags
-CCFLAGS=-m64 --std=c++14
-CXXFLAGS=-m64 --std=c++14
+CCFLAGS=-m64 -g --std=c++14
+CXXFLAGS=-m64 -g --std=c++14
 
 # Fortran Compiler Flags
 FFLAGS=
@@ -52,7 +52,7 @@ FFLAGS=
 ASFLAGS=
 
 # Link Libraries and Options
-LDLIBSOPTIONS=-L/C/Program\ Files\ \(x86\)/AMD\ APP\ SDK/3.0/lib/x86_64 -lOpenCL -lfreeglut -opengl32 -lglu32
+LDLIBSOPTIONS=-L/C/Program\ Files\ \(x86\)/AMD\ APP\ SDK/3.0/lib/x86_64 -lOpenCL -lfreeglut -lopengl32 -lglu32
 
 # Build Targets
 .build-conf: ${BUILD_SUBPROJECTS}

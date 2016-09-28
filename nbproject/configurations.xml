@@ -42,7 +42,7 @@
           <incDir>
             <pElem>C:/Program Files (x86)/AMD APP SDK/3.0/include</pElem>
           </incDir>
-          <commandLine>--std=c++14</commandLine>
+          <commandLine>-g --std=c++14</commandLine>
         </ccTool>
         <linkerTool>
           <linkerAddLib>
@@ -51,7 +51,7 @@
           <linkerLibItems>
             <linkerLibLibItem>OpenCL</linkerLibLibItem>
             <linkerOptionItem>-lfreeglut</linkerOptionItem>
-            <linkerOptionItem>-opengl32</linkerOptionItem>
+            <linkerOptionItem>-lopengl32</linkerOptionItem>
             <linkerOptionItem>-lglu32</linkerOptionItem>
           </linkerLibItems>
           <commandLine>-L"C:/MinGW64/freeglut/lib/x64"</commandLine>

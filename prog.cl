@@ -131,6 +131,13 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
     rays[id]=new_ray;
     colors[id]=hit.mat.kd;
 
+    //if(id>180000 && id<180004){
+    //    printf("colors[%06d]: [%06.2f %06.2f %06.2f]\n\r", id, colors[id].x, colors[id].y, colors[id].y);
+    //    printf("hits[%06d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
+    //}
+    //printf("colors[%06d]: [%06.2f %06.2f %06.2f]\t", id, colors[id].x, colors[id].y, colors[id].y);
+    //printf("hits[%06d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
+
     //printf("old P=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n\r", old_ray.P.x, old_ray.P.y, old_ray.P.z, old_ray.D.x, old_ray.D.y, old_ray.D.z);
     //printf("new P=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n\r", new_ray.P.x, new_ray.P.y, new_ray.P.z, new_ray.D.x, new_ray.D.y, new_ray.D.z);
 

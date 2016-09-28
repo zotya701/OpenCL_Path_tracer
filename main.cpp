@@ -10,8 +10,8 @@
 #include <cmath>
 #include <CL/cl.hpp>
 
-const int screenWidth=600;
-const int screenHeight=600;
+const int screenWidth=3;
+const int screenHeight=3;
 
 typedef struct{
     cl_float3 kd,ks,emission,F0;    //diffuse, specular, emission, Fresnel
@@ -61,7 +61,7 @@ Triangle cons_Triangle(cl_float3 r1, cl_float3 r2, cl_float3 r3, Material mat){
     
     float length=sqrt(n[0]*n[0] + n[1]*n[1] + n[2]*n[2]);
     for(int i=0;i<3;++i){
-        n[0]=n[0]/length;
+        n[i]=n[i]/length;
     }
     
     tri.N=(cl_float3){n[0], n[1], n[2]};
@@ -167,6 +167,10 @@ public:
         tris_size=tris.size();
         buffer_tris=cl::Buffer(context,CL_MEM_READ_ONLY,sizeof(Triangle)*tris_size);
         queue.enqueueWriteBuffer(buffer_tris,CL_TRUE,0,sizeof(Triangle)*tris_size,&tris[0]);
+        
+//        for(int i=0;i<tris_size;++i){
+//            printf("[%06.2f %06.2f %06.2f]\n", tris[i].N.s[0], tris[i].N.s[1], tris[i].N.s[2]);
+//        }
     }
     void generate_rays(){
         cl::Kernel kernel_gen_ray=cl::Kernel(program,"gen_ray");
@@ -230,13 +234,13 @@ void onInitialization( ) {
     
     //balra
     mat=cons_Material((cl_float3){0.0f, 1.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
-    scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 1000.0f, 1000.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 1000.0f}, mat));
+    scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 0.0f, 1000.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 1000.0f, 1000.0f}, mat));
     scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 1000.0f, 1000.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 1000.0f, 0.0f}, mat));
     
     //jobbra
     mat=cons_Material((cl_float3){0.0f, 1.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 1000.0f}, (cl_float3){1000.0f, 0.0f, 0.0f}, (cl_float3){1000.0f, 0.0f, 1000.0f}, mat));
-    scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 1000.0f}, (cl_float3){1000.0f, 0.0f, 0.0f}, (cl_float3){1000.0f, 1000.0f, 0.0f}, mat));
+    scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 0.0f}, (cl_float3){1000.0f, 0.0f, 0.0f}, (cl_float3){1000.0f, 1000.0f, 1000.0f}, mat));
     
     //alul
     mat=cons_Material((cl_float3){1.0f, 1.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
@@ -245,8 +249,8 @@ void onInitialization( ) {
     
     //felül
     mat=cons_Material((cl_float3){1.0f, 1.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
-    scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 1000.0f, 0.0f}, (cl_float3){0.0f, 1000.0f, 1000.0f}, (cl_float3){1000.0f, 1000.0f, 1000.0f}, mat));
-    scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 1000.0f}, (cl_float3){1000.0f, 1000.0f, 0.0f}, (cl_float3){0.0f, 1000.0f, 0.0f}, mat));
+    scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 1000.0f, 1000.0f}, (cl_float3){0.0f, 1000.0f, 0.0f}, (cl_float3){1000.0f, 1000.0f, 1000.0f}, mat));
+    scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 1000.0f}, (cl_float3){0.0f, 1000.0f, 0.0f}, (cl_float3){1000.0f, 1000.0f, 0.0f}, mat));
     
     
     fflush(stdout);
