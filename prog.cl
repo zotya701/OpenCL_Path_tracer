@@ -113,6 +113,7 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
     Ray old_ray=rays[id];
     Ray new_ray=new_ray_diffuse(hit);
     rays[id]=new_ray;
+    colors[id]=hit.mat.kd;
 
     //printf("old P=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n\r", old_ray.P.x, old_ray.P.y, old_ray.P.z, old_ray.D.x, old_ray.D.y, old_ray.D.z);
     //printf("new P=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n\r", new_ray.P.x, new_ray.P.y, new_ray.P.z, new_ray.D.x, new_ray.D.y, new_ray.D.z);

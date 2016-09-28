@@ -9,9 +9,21 @@ const int screenHeight=10;
 
 typedef struct{
     cl_float3 kd,ks,emission,F0;    //diffuse, specular, emission, Fresnel
-    float n, shininess, glossiness;
-    int type;   //0-diffuse, 1-x, 2-x, 3-Emitter
+    cl_float n, shininess, glossiness;
+    cl_int type;   //0-diffuse, 1-x, 2-x, 3-Emitter
 } Material;
+Material cons_Material(cl_float3 kd, cl_float3 ks, cl_float3 emission, cl_float3 N, cl_float3 K, cl_float shininess, cl_int type){
+    Material mat; mat.kd=kd; mat.ks=ks; mat.emission=emission; mat.shininess=shininess; mat.type=type;
+    mat.n=(cl_float){(N.s[0]+N.s[1]+N.s[2])/3.0f};
+    float F0[3];
+    for(int i=0;i<3;++i){
+        float a=(N.s[i]-1)*(N.s[i]-1);
+        float b=(N.s[i]+1)*(N.s[i]+1);
+        F0[i]=(K.s[i]*K.s[i]+a)/(K.s[i]*K.s[i]+b);
+    }
+    mat.F0=(cl_float3){F0[0], F0[1], F0[2]};
+    return mat;
+}
 
 typedef struct {
     cl_float3 P,D;  //origo and direction
@@ -30,8 +42,8 @@ typedef struct {
     cl_float3 r1,r2,r3,N;   //vertices of the triangle and it's normal vector
     Material mat;
 } Triangle;
-Triangle cons_Triangle(cl_float3 r1, cl_float3 r2, cl_float3 r3, cl_float3 n){
-    Triangle tri; tri.r1=r1; tri.r2=r2; tri.r3=r3; tri.N=n; return tri;
+Triangle cons_Triangle(cl_float3 r1, cl_float3 r2, cl_float3 r3, cl_float3 n, Material mat){
+    Triangle tri; tri.r1=r1; tri.r2=r2; tri.r3=r3; tri.N=n; tri.mat=mat; return tri;
 }
 
 class Color{
@@ -143,7 +155,7 @@ public:
         printf("%f\n", elapsed_secs);
         for(int i=0;i<10;++i){
             cl_float3 c=cl_float3_image[i];
-            printf("r=%6.2f g=%6.2f b=%6.2f\n", c.s[0], c.s[1], c.s[2]);
+            printf("r=%06.2f g=%06.2f b=%06.2f\n", c.s[0], c.s[1], c.s[2]);
         }
     }
     void finish(){
@@ -156,8 +168,9 @@ int main(){
     scene.init_Scene();
     
     for(int i=0;i<25;++i){
-        scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 0.0f, 1000.0f+i}, (cl_float3){0.0f, 1000.0f, 1000.0f+i}, (cl_float3){1000.0f, 1000.0f, 1000.0f+i}, (cl_float3){0.0f, 0.0f, -1.0f}));
-        scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 1000.0f+i}, (cl_float3){1000.0f, 0.0f, 1000.0f+i}, (cl_float3){0.0f, 0.0f, 1000.0f+i}, (cl_float3){0.0f, 0.0f, -1.0f}));
+        Material mat=cons_Material((cl_float3){0.5f, 0.3f, 1.0f+i}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
+        scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 0.0f, 1000.0f+i}, (cl_float3){0.0f, 1000.0f, 1000.0f+i}, (cl_float3){1000.0f, 1000.0f, 1000.0f+i}, (cl_float3){0.0f, 0.0f, -1.0f}, mat));
+        scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 1000.0f+i}, (cl_float3){1000.0f, 0.0f, 1000.0f+i}, (cl_float3){0.0f, 0.0f, 1000.0f+i}, (cl_float3){0.0f, 0.0f, -1.0f}, mat));
     }
     scene.upload_Triangles();
     scene.generate_rays();
