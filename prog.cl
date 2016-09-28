@@ -5,7 +5,7 @@ typedef struct{
     int type;
 } Material;
 
-typedef struct {
+typedef struct{
     float3 P,D;
 } Ray;
 Ray cons_Ray(float3 p, float3 d){
@@ -24,10 +24,24 @@ Hit init_Hit(){
     return cons_Hit(-1.0f, (float3)(0.0f, 0.0f, 0.0f), (float3)(1.0f, 0.0f, 0.0f));
 }
 
-typedef struct {
+typedef struct{
     float3 r1,r2,r3,N;
     Material mat;
 } Triangle;
+
+typedef struct{
+    float3 eye, lookat, up, right;
+    float XM, YM;
+} Camera;
+Ray camera_get_ray(int id, Camera cam){
+    int X=cam.XM;
+    int Y=cam.YM;
+    float x=id%X+0.5f;
+    float y=id/Y+0.5f;
+    float3 p=cam.lookat + cam.right*(2.0f*x/cam.XM-1) + cam.up*(2*y/cam.YM-1);
+    float3 d=normalize(p-cam.eye);
+    return cons_Ray(p, d);
+}
 
 Hit triangle_intersect(Triangle tri, Ray ray){
     float3 P=ray.P;
@@ -110,6 +124,8 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
     int id=get_global_id(0);
     Hit hit=first_intersect(tris, tris_size, rays[id]);
 
+    //printf("hits[%03d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
+
     Ray old_ray=rays[id];
     Ray new_ray=new_ray_diffuse(hit);
     rays[id]=new_ray;
@@ -120,4 +136,9 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
 
     //printf("id=%02d \t%f %d\n\r", id, hit.mat.n, hit.mat.type);
     //printf("rays[%03d]=\tP=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n\r", id, rays[id].P.x, rays[id].P.y, rays[id].P.z, rays[id].D.x, rays[id].D.y, rays[id].D.z);
+}
+
+void kernel gen_ray(global Ray* rays, const Camera camera){
+    int id=get_global_id(0);
+    rays[id]=camera_get_ray(id, camera);
 }

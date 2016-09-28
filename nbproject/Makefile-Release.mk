@@ -52,7 +52,7 @@ FFLAGS=
 ASFLAGS=
 
 # Link Libraries and Options
-LDLIBSOPTIONS=-L/C/Program\ Files\ \(x86\)/AMD\ APP\ SDK/3.0/lib/x86_64 -lOpenCL
+LDLIBSOPTIONS=-L/C/Program\ Files\ \(x86\)/AMD\ APP\ SDK/3.0/lib/x86_64 -lOpenCL -lfreeglut -lopengl32 -lglu32
 
 # Build Targets
 .build-conf: ${BUILD_SUBPROJECTS}
@@ -60,12 +60,12 @@ LDLIBSOPTIONS=-L/C/Program\ Files\ \(x86\)/AMD\ APP\ SDK/3.0/lib/x86_64 -lOpenCL
 
 ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/opencl_path_tracer.exe: ${OBJECTFILES}
 	${MKDIR} -p ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}
-	${LINK.cc} -o ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/opencl_path_tracer ${OBJECTFILES} ${LDLIBSOPTIONS} -s
+	${LINK.cc} -o ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/opencl_path_tracer ${OBJECTFILES} ${LDLIBSOPTIONS} -L"C:/MinGW64/freeglut/lib/x64" -s
 
 ${OBJECTDIR}/main.o: main.cpp 
 	${MKDIR} -p ${OBJECTDIR}
 	${RM} "$@.d"
-	$(COMPILE.cc) -O3 -I/C/Program\ Files\ \(x86\)/AMD\ APP\ SDK/3.0/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/main.o main.cpp
+	$(COMPILE.cc) -O3 -I/C/Program\ Files\ \(x86\)/AMD\ APP\ SDK/3.0/include -I/C/MinGW64/freeglut/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/main.o main.cpp
 
 # Subprojects
 .build-subprojects:
