@@ -10,8 +10,10 @@
 #include <cmath>
 #include <CL/cl.hpp>
 
-const int screenWidth=3;
-const int screenHeight=3;
+const int screenWidth=1600;
+const int screenHeight=900;
+enum ControllKeys {W, A, S, D, keys_num};
+bool keys_down[keys_num];
 
 typedef struct{
     cl_float3 kd,ks,emission,F0;    //diffuse, specular, emission, Fresnel
@@ -75,10 +77,10 @@ typedef struct{
 Camera cons_Camera(){
     Camera cam;
     float fov=60;
-    cam.lookat=(cl_float3){500.0f, 500.0f, 1.0f};
+    cam.lookat=(cl_float3){500.0f, 500.0f, 0.0f};
     cam.eye=(cl_float3){cam.lookat.s[0], cam.lookat.s[1], cam.lookat.s[2]-500.0f/tan(fov/2.0f/180.0f*3.141593f)};
-    cam.up=(cl_float3){0.0f, 500.0f, 0.0f};
-    cam.right=(cl_float3){500.0f, 0.0f, 0.0f};
+    cam.up=(cl_float3){0.0f, 500, 0.0f};
+    cam.right=(cl_float3){500*((float)screenWidth/screenHeight), 0.0f, 0.0f};
     cam.XM=(cl_float){(float)screenWidth};
     cam.YM=(cl_float){(float)screenHeight};
     return cam;
@@ -91,7 +93,7 @@ public:
         r=g=b=0.0f;
     }
     Color(float r, float g, float b){
-        this->r=r; this->g=g; this->b;
+        this->r=r; this->g=g; this->b=b;
     }
 };
 
@@ -180,7 +182,7 @@ public:
         queue.enqueueNDRangeKernel(kernel_gen_ray,cl::NullRange,cl::NDRange(rays_size),cl::NullRange);
     }
     void trace_rays(){
-        clock_t begin=clock();
+        //clock_t begin=clock();
         //run the kernel
         cl::Kernel kernel_trace_ray=cl::Kernel(program,"trace_ray");
         kernel_trace_ray.setArg(0,buffer_tris);
@@ -193,8 +195,8 @@ public:
         queue.enqueueReadBuffer(buffer_colors,CL_TRUE,0,sizeof(cl_float3)*rays_size,cl_float3_image);
         
         clock_t end=clock();
-        double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-        printf("%f\n", elapsed_secs);
+        //double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
+        //printf("%f\n", elapsed_secs);
         for(int i=0;i<rays_size;++i){
             cl_float3 c=cl_float3_image[i];
             //printf("cl_float3_image[%03d] r=%06.2f g=%06.2f b=%06.2f\n", i, c.s[0], c.s[1], c.s[2]);
@@ -238,7 +240,7 @@ void onInitialization( ) {
     scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 1000.0f, 1000.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 1000.0f, 0.0f}, mat));
     
     //jobbra
-    mat=cons_Material((cl_float3){0.0f, 1.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
+    mat=cons_Material((cl_float3){0.0f, 0.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 1000.0f}, (cl_float3){1000.0f, 0.0f, 0.0f}, (cl_float3){1000.0f, 0.0f, 1000.0f}, mat));
     scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 0.0f}, (cl_float3){1000.0f, 0.0f, 0.0f}, (cl_float3){1000.0f, 1000.0f, 1000.0f}, mat));
     
@@ -248,7 +250,7 @@ void onInitialization( ) {
     scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 0.0f, 1000.0f}, (cl_float3){1000.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, mat));
     
     //felül
-    mat=cons_Material((cl_float3){1.0f, 1.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
+    mat=cons_Material((cl_float3){0.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 1000.0f, 1000.0f}, (cl_float3){0.0f, 1000.0f, 0.0f}, (cl_float3){1000.0f, 1000.0f, 1000.0f}, mat));
     scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 1000.0f}, (cl_float3){0.0f, 1000.0f, 0.0f}, (cl_float3){1000.0f, 1000.0f, 0.0f}, mat));
     
@@ -289,13 +291,19 @@ void onMouseMotion(int x, int y){
 }
 
 void onIdle( ) {
-    
+    clock_t begin=clock();
+    scene.upload_Triangles();
+    scene.generate_rays();
+    scene.trace_rays();
+    clock_t end=clock();
+    float elapsed_secs = float(end - begin) / CLOCKS_PER_SEC;
+    float fps=1.0f/elapsed_secs;
+    printf("\r                                                                                                                                       \r");
+    printf("%f fps",fps);
+    fflush(stdout);
+    glutPostRedisplay();
 }
 
-// ...Idaig modosithatod
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-// A C++ program belepesi pontja, a main fuggvenyt mar nem szabad bantani
 int main(int argc, char **argv) {
     glutInit(&argc, argv); 				// GLUT inicializalasa
     glutInitWindowSize(screenWidth, screenHeight);	// Alkalmazas ablak kezdeti merete 600x600 pixel 
@@ -322,34 +330,3 @@ int main(int argc, char **argv) {
     
     return 0;
 }
-
-
-
-//int main(){
-//    Scene scene;
-//    scene.init_Scene();
-//    
-//    for(int i=0;i<25;++i){
-//        Material mat=cons_Material((cl_float3){0.5f, 0.3f, 1.0f+i}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
-//        scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 0.0f, 1000.0f+i}, (cl_float3){0.0f, 1000.0f, 1000.0f+i}, (cl_float3){1000.0f, 1000.0f, 1000.0f+i}, (cl_float3){0.0f, 0.0f, -1.0f}, mat));
-//        scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 1000.0f+i}, (cl_float3){1000.0f, 0.0f, 1000.0f+i}, (cl_float3){0.0f, 0.0f, 1000.0f+i}, (cl_float3){0.0f, 0.0f, -1.0f}, mat));
-//    }
-//    scene.upload_Triangles();
-//    scene.generate_rays();
-//    scene.trace_rays();
-//    
-////    for(int i=0;i<500;++i){
-////        clock_t begin=clock();
-////        scene.trace_rays();
-////        clock_t end=clock();
-////        float elapsed_secs = float(end - begin) / CLOCKS_PER_SEC;
-////        float fps=1.0f/elapsed_secs;
-////        printf("\r                                                                                                                                       \r");
-////        printf("%f fps",fps);
-////        fflush(stdout);
-////    }
-//    
-//    scene.finish();
-//    
-//    return 0;
-//}

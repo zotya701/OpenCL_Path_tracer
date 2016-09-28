@@ -37,7 +37,7 @@ Ray camera_get_ray(int id, Camera cam){
     int X=cam.XM;
     int Y=cam.YM;
     float x=id%X+0.5f;
-    float y=id/Y+0.5f;
+    float y=id/X+0.5f;
     float3 p=cam.lookat + cam.right*(2.0f*x/cam.XM-1) + cam.up*(2*y/cam.YM-1);
     float3 d=normalize(p-cam.eye);
     return cons_Ray(p, d);
@@ -124,18 +124,24 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
     int id=get_global_id(0);
     Hit hit=first_intersect(tris, tris_size, rays[id]);
 
+    
+
     //printf("hits[%03d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
 
     Ray old_ray=rays[id];
     Ray new_ray=new_ray_diffuse(hit);
     rays[id]=new_ray;
-    colors[id]=hit.mat.kd;
+    if(hit.t>0){
+        colors[id]=hit.mat.kd;
+    }else{
+        colors[id]=(float3)(0.0f, 0.0f, 0.0f);
+    }
 
     //if(id>180000 && id<180004){
-    //    printf("colors[%06d]: [%06.2f %06.2f %06.2f]\n\r", id, colors[id].x, colors[id].y, colors[id].y);
+    //    printf("colors[%06d]: [%06.2f %06.2f %06.2f]\n\r", id, colors[id].x, colors[id].y, colors[id].z);
     //    printf("hits[%06d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
     //}
-    //printf("colors[%06d]: [%06.2f %06.2f %06.2f]\t", id, colors[id].x, colors[id].y, colors[id].y);
+    //printf("colors[%06d]: [%06.2f %06.2f %06.2f]\t", id, colors[id].x, colors[id].y, colors[id].z);
     //printf("hits[%06d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
 
     //printf("old P=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n\r", old_ray.P.x, old_ray.P.y, old_ray.P.z, old_ray.D.x, old_ray.D.y, old_ray.D.z);
