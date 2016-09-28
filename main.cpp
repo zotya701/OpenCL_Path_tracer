@@ -12,8 +12,6 @@
 
 const int screenWidth=1600;
 const int screenHeight=900;
-enum ControllKeys {W, A, S, D, keys_num};
-bool keys_down[keys_num];
 
 typedef struct{
     cl_float3 kd,ks,emission,F0;    //diffuse, specular, emission, Fresnel
