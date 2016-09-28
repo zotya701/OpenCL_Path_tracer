@@ -8,6 +8,9 @@ typedef struct{
 typedef struct {
     float3 P,D;
 } Ray;
+Ray cons_Ray(float3 p, float3 d){
+    Ray ray; ray.P=p; ray.D=d; return ray;
+}
 
 typedef struct{
     float t;
@@ -38,7 +41,6 @@ Hit triangle_intersect(Triangle tri, Ray ray){
     if( dot( cross((tri.r2-tri.r1),(p-tri.r1)) , N) >= 0){
         if( dot( cross((tri.r3-tri.r2),(p-tri.r2)) , N)>=0){
             if( dot( cross((tri.r1-tri.r3),(p-tri.r3)) , N)>=0){
-                printf("%f\n",t);
                 Hit hit=cons_Hit(t,p,N);
                 hit.mat=tri.mat;
                 return hit;
@@ -52,7 +54,7 @@ Hit first_intersect(global const Triangle* tris, const int tris_size, const Ray 
     Hit best_hit=init_Hit();
     for(int i=0; i<tris_size; ++i){
         Hit hit=triangle_intersect(tris[i], ray);
-        //printf("hits[%03d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n", i, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
+        //printf("hits[%03d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", i, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
         if(hit.t>0 && (best_hit.t<0 || hit.t<best_hit.t)){
             best_hit=hit;
         }
@@ -100,18 +102,21 @@ Ray new_ray_diffuse(Hit hit){
     x=r*cos(theta);
     y=r*sin(theta);
     z=sqrt(fmax(0.0f, 1-rnd1));
-    float3 new_dir = normalize(X*x+Y*z+Z*y);
+    float3 new_d = normalize(X*x+Y*z+Z*y);
+    return cons_Ray(hit.P,new_d);
 }
 
-void kernel trace_ray(global const Triangle* tris, const int tris_size, global Ray* rays, global Hit* hits){
+void kernel trace_ray(global const Triangle* tris, const int tris_size, global Ray* rays, global float3* colors){
     int id=get_global_id(0);
     Hit hit=first_intersect(tris, tris_size, rays[id]);
-    hits[id]=hit;
 
-    //Ray old_ray=rays[id];
-    //Ray new_ray=new_ray_diffuse(hit);
-    //rays[id]=new_ray;
+    Ray old_ray=rays[id];
+    Ray new_ray=new_ray_diffuse(hit);
+    rays[id]=new_ray;
 
-    //printf("id=%02d \t%f %d\n", id, hit.mat.n, hit.mat.type);
-    //printf("rays[%03d]=\tP=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n", id, rays[id].P.x, rays[id].P.y, rays[id].P.z, rays[id].D.x, rays[id].D.y, rays[id].D.z);
+    //printf("old P=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n\r", old_ray.P.x, old_ray.P.y, old_ray.P.z, old_ray.D.x, old_ray.D.y, old_ray.D.z);
+    //printf("new P=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n\r", new_ray.P.x, new_ray.P.y, new_ray.P.z, new_ray.D.x, new_ray.D.y, new_ray.D.z);
+
+    //printf("id=%02d \t%f %d\n\r", id, hit.mat.n, hit.mat.type);
+    //printf("rays[%03d]=\tP=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n\r", id, rays[id].P.x, rays[id].P.y, rays[id].P.z, rays[id].D.x, rays[id].D.y, rays[id].D.z);
 }
