@@ -12,7 +12,39 @@
 
 const int screenWidth=600;
 const int screenHeight=400;
-float sinvar=0;
+float global_yaw=0;
+float global_pitch=0;
+float global_forward=0;;
+float global_rightward=0;
+cl_float3 global_shift=(cl_float3){0.0f, 0.0f, 0.0f};
+
+enum ControllKeys {W, A, S, D, keys_num};
+bool keys_down[keys_num];
+
+cl_float3 rotate_z(cl_float3 v, float alpha){
+    alpha=alpha/180.0f*3.141593f;
+    float r[3];
+    r[0]=v.s[0]*cos(alpha)-v.s[1]*sin(alpha);
+    r[1]=v.s[0]*sin(alpha)+v.s[1]*cos(alpha);
+    r[2]=v.s[2];
+    return (cl_float3){r[0], r[1], r[2]};
+}
+cl_float3 rotate_y(cl_float3 v, float beta){
+    beta=beta/180.0f*3.141593f;
+    float r[3];
+    r[0]=v.s[0]*cos(beta)+v.s[2]*sin(beta);
+    r[1]=v.s[1];
+    r[2]=-v.s[0]*sin(beta)+v.s[2]*cos(beta);
+    return (cl_float3){r[0], r[1], r[2]};
+}
+cl_float3 rotate_x(cl_float3 v, float gamma){
+    gamma=gamma/180.0f*3.141593f;
+    float r[3];
+    r[0]=v.s[0];
+    r[1]=v.s[1]*cos(gamma)-v.s[2]*sin(gamma);
+    r[2]=v.s[1]*sin(gamma)+v.s[2]*cos(gamma);
+    return (cl_float3){r[0], r[1], r[2]};
+}
 
 typedef struct{
     cl_float3 kd,ks,emission,F0;    //diffuse, specular, emission, Fresnel
@@ -81,20 +113,40 @@ typedef struct{
 Camera cons_Camera(){
     Camera cam;
     float fov=60;
-    float h_rotate=0.0f;
-    float v_rotate=0.0f;
+    float yaw=0.0f+global_yaw;
+    float pitch=0.0f+global_pitch;
+    float roll=0.0f;
     
-//    float up_length=500.0f;
-//    float right_length=500.0f*((float)screenWidth/screenHeight);
-//    float ahead_length=right_length/tan(fov/2.0f/180.0f*3.141593f);
-//    cam.lookat=(cl_float3){500.0f, 500.0f, 0.0f};
-//    cam.eye=(cl_float3){cam.lookat.s[0], cam.lookat.s[1], cam.lookat.s[2]-ahead_length};
+    float up_length=500.0f;
+    float right_length=500.0f*((float)screenWidth/screenHeight);
+    float ahead_length=right_length/tan(fov/2.0f/180.0f*3.141593f);
     
+    cl_float3 up=(cl_float3){0.0f, 1.0f, 0.0f};
+    cl_float3 right=(cl_float3){1.0f, 0.0f, 0.0f};
+    cl_float3 ahead=(cl_float3){0.0f, 0.0f, 1.0f};
     
-    cam.lookat=(cl_float3){500.0f, 500.0f, 0.0f};
-    cam.eye=(cl_float3){cam.lookat.s[0], cam.lookat.s[1], cam.lookat.s[2]-500.0f/tan(fov/2.0f/180.0f*3.141593f)};
-    cam.up=(cl_float3){0.0f, 500, 0.0f};
-    cam.right=(cl_float3){500*((float)screenWidth/screenHeight), 0.0f, 0.0f};
+    up=rotate_x(up, pitch);
+    up=rotate_y(up, yaw);
+    
+    right=rotate_x(right, pitch);
+    right=rotate_y(right, yaw);
+    
+    ahead=rotate_x(ahead, pitch);
+    ahead=rotate_y(ahead, yaw);
+    
+    for(int i=0;i<3;++i){
+        global_shift.s[i]=global_shift.s[i] + ahead.s[i]*global_forward + right.s[i]*global_rightward;
+    }
+    
+    //shift=rotate_x(shift, pitch);
+    //shift=rotate_y(shift, yaw);
+    
+    cam.eye=(cl_float3){500.0f+global_shift.s[0], 500.0f+global_shift.s[1], -1299.037842f+global_shift.s[2]};
+    
+    cam.up=(cl_float3){up.s[0]*up_length, up.s[1]*up_length, up.s[2]*up_length};
+    cam.right=(cl_float3){right.s[0]*right_length, right.s[1]*right_length, right.s[2]*right_length};
+    cam.lookat=(cl_float3){cam.eye.s[0]+ahead.s[0]*ahead_length, cam.eye.s[1]+ahead.s[1]*ahead_length, cam.eye.s[2]+ahead.s[2]*ahead_length};
+
     cam.XM=(cl_float){(float)screenWidth};
     cam.YM=(cl_float){(float)screenHeight};
     return cam;
@@ -275,6 +327,8 @@ void onInitialization( ) {
     scene.add_Triangle(cons_Triangle((cl_float3){250.0f, 0.0f, 250.0f}, (cl_float3){250.0f, 0.0f, 750.0f}, (cl_float3){500.0f, 500.0f, 500.0f}, mat));
     mat=cons_Material((cl_float3){0.0f, 0.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){750.0f, 0.0f, 250.0f}, (cl_float3){500.0f, 500.0f, 500.0f}, (cl_float3){750.0f, 0.0f, 750.0f}, mat));
+    mat=cons_Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
+    scene.add_Triangle(cons_Triangle((cl_float3){250.0f, 0.0f, 750.0f}, (cl_float3){500.0f, 500.0f, 500.0f}, (cl_float3){750.0f, 0.0f, 750.0f}, mat));
     
     fflush(stdout);
 }
@@ -297,33 +351,84 @@ void onKeyboard(unsigned char key, int x, int y) {
         glutPostRedisplay();
         printf("Render finished!\n");fflush(stdout);
     }
+    switch(key) {
+        case 'w': case 'W':
+            keys_down[W] = true;
+        break;
+        case 's': case 'S':
+            keys_down[S] = true;
+        break;
+        case 'a': case 'A':
+            keys_down[A] = true;
+        break;
+        case 'd': case 'D':
+            keys_down[D] = true;
+        break;
+    }
 }
 
 void onKeyboardUp(unsigned char key, int x, int y) {
-    
+    switch(key) {
+        case 'w': case 'W':
+            keys_down[W] = false;
+        break;
+        case 's': case 'S':
+            keys_down[S] = false;
+        break;
+        case 'a': case 'A':
+            keys_down[A] = false;
+        break;
+        case 'd': case 'D':
+            keys_down[D] = false;
+        break;
+    }
 }
 
-void onMouse(int button, int state, int x, int y) {
-    
+int last_x, last_y;
+void onMouse(int, int, int x, int y) {
+    last_x = x;
+    last_y = y;
+}
+ 
+void onMouseMotion(int x, int y) {
+    //camera.updateDir(x-last_x, last_y-y);
+    int dx=x-last_x;
+    int dy=y-last_y;
+    float speed=0.2f;
+    global_yaw=global_yaw+dx*speed;
+    global_pitch=global_pitch+dy*speed;
+    last_x = x;
+    last_y = y;
 }
 
-void onMouseMotion(int x, int y){
-    
-}
-
+float old=0;
+float newTime=0;
+float dt=0;
 void onIdle( ) {
-    //clock_t begin=clock();
-    float time=glutGet(GLUT_ELAPSED_TIME)/1000.0f;
-    float sinus=sin(time);
-    sinvar=sinus*500.0f;
+    old = newTime;
+    newTime = glutGet(GLUT_ELAPSED_TIME)/1000.0f;
+    dt=newTime-old;
+    
+    float speed=1000.0f;
+    if(keys_down[W])
+        global_forward=speed*dt;
+    else if(keys_down[S])
+        global_forward=-speed*dt;
+    else
+        global_forward=0;
+    if(keys_down[A])
+        global_rightward=-speed*dt;
+    else if(keys_down[D])
+        global_rightward=speed*dt;
+    else
+        global_rightward=0;
+    
+    printf("fw=%06.2f rw=%06.2f\n", global_forward, global_rightward);
+    
     scene.upload_Triangles();
     scene.generate_rays();
     scene.trace_rays();
-    //clock_t end=clock();
-    //float elapsed_secs = float(end - begin) / CLOCKS_PER_SEC;
-    //float fps=1.0f/elapsed_secs;
-    //printf("\r                                                                                                                                       \r");
-    //printf("%f fps",fps);
+        
     fflush(stdout);
     glutPostRedisplay();
 }
@@ -349,7 +454,7 @@ int main(int argc, char **argv) {
     glutKeyboardFunc(onKeyboard);
     glutKeyboardUpFunc(onKeyboardUp);
     glutMotionFunc(onMouseMotion);
-
+    
     glutMainLoop();					// Esemenykezelo hurok
     
     return 0;
