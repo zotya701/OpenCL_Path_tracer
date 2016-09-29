@@ -10,8 +10,9 @@
 #include <cmath>
 #include <CL/cl.hpp>
 
-const int screenWidth=1600;
-const int screenHeight=900;
+const int screenWidth=600;
+const int screenHeight=400;
+float sinvar=0;
 
 typedef struct{
     cl_float3 kd,ks,emission,F0;    //diffuse, specular, emission, Fresnel
@@ -41,7 +42,7 @@ Ray cons_Ray(cl_float3 p, cl_float3 d){
 typedef struct{
     cl_float t;         //time
     cl_float3 P,N;      //hitposition and normal vector in hitposition
-    Material mat;  //material of the triangle
+    Material mat;       //material of the triangle what was hit by the ray
 } Hit;
 
 typedef struct{
@@ -51,14 +52,19 @@ typedef struct{
 Triangle cons_Triangle(cl_float3 r1, cl_float3 r2, cl_float3 r3, Material mat){
     Triangle tri; tri.r1=r1; tri.r2=r2; tri.r3=r3; tri.mat=mat;
     float v1[3],v2[3],n[3];
+    
+    //calculate (r2-r1) and (r3-r1)
     for(int i=0;i<3;++i){
         v1[i]=r2.s[i]-r1.s[i];
         v2[i]=r3.s[i]-r1.s[i];
     }
+    
+    //cross product of (r2-r1) and (r3-r1)
     n[0]=v1[1]*v2[2] - v1[2]*v2[1];
     n[1]=v1[2]*v2[0] - v1[0]*v2[2];
     n[2]=v1[0]*v2[1] - v1[1]*v2[0];
     
+    //normalize the normal vector
     float length=sqrt(n[0]*n[0] + n[1]*n[1] + n[2]*n[2]);
     for(int i=0;i<3;++i){
         n[i]=n[i]/length;
@@ -75,6 +81,16 @@ typedef struct{
 Camera cons_Camera(){
     Camera cam;
     float fov=60;
+    float h_rotate=0.0f;
+    float v_rotate=0.0f;
+    
+//    float up_length=500.0f;
+//    float right_length=500.0f*((float)screenWidth/screenHeight);
+//    float ahead_length=right_length/tan(fov/2.0f/180.0f*3.141593f);
+//    cam.lookat=(cl_float3){500.0f, 500.0f, 0.0f};
+//    cam.eye=(cl_float3){cam.lookat.s[0], cam.lookat.s[1], cam.lookat.s[2]-ahead_length};
+    
+    
     cam.lookat=(cl_float3){500.0f, 500.0f, 0.0f};
     cam.eye=(cl_float3){cam.lookat.s[0], cam.lookat.s[1], cam.lookat.s[2]-500.0f/tan(fov/2.0f/180.0f*3.141593f)};
     cam.up=(cl_float3){0.0f, 500, 0.0f};
@@ -173,6 +189,7 @@ public:
 //        }
     }
     void generate_rays(){
+        camera=cons_Camera();
         cl::Kernel kernel_gen_ray=cl::Kernel(program,"gen_ray");
         kernel_gen_ray.setArg(0,buffer_rays);
         kernel_gen_ray.setArg(1,camera);
@@ -252,6 +269,12 @@ void onInitialization( ) {
     scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 1000.0f, 1000.0f}, (cl_float3){0.0f, 1000.0f, 0.0f}, (cl_float3){1000.0f, 1000.0f, 1000.0f}, mat));
     scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 1000.0f}, (cl_float3){0.0f, 1000.0f, 0.0f}, (cl_float3){1000.0f, 1000.0f, 0.0f}, mat));
     
+    mat=cons_Material((cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
+    scene.add_Triangle(cons_Triangle((cl_float3){250.0f, 0.0f, 250.0f}, (cl_float3){500.0f, 500.0f, 500.0f}, (cl_float3){750.0f, 0.0f, 250.0f}, mat));
+    mat=cons_Material((cl_float3){0.0f, 1.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
+    scene.add_Triangle(cons_Triangle((cl_float3){250.0f, 0.0f, 250.0f}, (cl_float3){250.0f, 0.0f, 750.0f}, (cl_float3){500.0f, 500.0f, 500.0f}, mat));
+    mat=cons_Material((cl_float3){0.0f, 0.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
+    scene.add_Triangle(cons_Triangle((cl_float3){750.0f, 0.0f, 250.0f}, (cl_float3){500.0f, 500.0f, 500.0f}, (cl_float3){750.0f, 0.0f, 750.0f}, mat));
     
     fflush(stdout);
 }
@@ -289,15 +312,18 @@ void onMouseMotion(int x, int y){
 }
 
 void onIdle( ) {
-    clock_t begin=clock();
+    //clock_t begin=clock();
+    float time=glutGet(GLUT_ELAPSED_TIME)/1000.0f;
+    float sinus=sin(time);
+    sinvar=sinus*500.0f;
     scene.upload_Triangles();
     scene.generate_rays();
     scene.trace_rays();
-    clock_t end=clock();
-    float elapsed_secs = float(end - begin) / CLOCKS_PER_SEC;
-    float fps=1.0f/elapsed_secs;
-    printf("\r                                                                                                                                       \r");
-    printf("%f fps",fps);
+    //clock_t end=clock();
+    //float elapsed_secs = float(end - begin) / CLOCKS_PER_SEC;
+    //float fps=1.0f/elapsed_secs;
+    //printf("\r                                                                                                                                       \r");
+    //printf("%f fps",fps);
     fflush(stdout);
     glutPostRedisplay();
 }

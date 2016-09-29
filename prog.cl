@@ -40,7 +40,8 @@ Ray camera_get_ray(int id, Camera cam){
     float y=id/X+0.5f;
     float3 p=cam.lookat + cam.right*(2.0f*x/cam.XM-1) + cam.up*(2*y/cam.YM-1);
     float3 d=normalize(p-cam.eye);
-    return cons_Ray(p, d);
+    
+    return cons_Ray(cam.eye, d);
 }
 
 Hit triangle_intersect(Triangle tri, Ray ray){
