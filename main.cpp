@@ -1,13 +1,14 @@
 #include <windows.h>
-#include <GL/gl.h>
-#include <GL/glu.h>
-#include <GL/glut.h>
-
 #include <iostream>
 #include <sstream>
 #include <fstream>
 #include <ctime>
 #include <cmath>
+#include <random>
+#include <thread>
+#include <GL/gl.h>
+#include <GL/glu.h>
+#include <GL/glut.h>
 #include <CL/cl.hpp>
 
 const int screenWidth=600;
@@ -17,9 +18,11 @@ float global_pitch=0;
 float global_forward=0;;
 float global_rightward=0;
 cl_float3 global_shift=(cl_float3){0.0f, 0.0f, 0.0f};
-
 enum ControllKeys {W, A, S, D, keys_num};
 bool keys_down[keys_num];
+
+std::default_random_engine generator;
+std::uniform_real_distribution<double> distribution(0.0,1.0);
 
 cl_float3 rotate_z(cl_float3 v, float alpha){
     alpha=alpha/180.0f*3.141593f;
@@ -172,11 +175,13 @@ private:
     int tris_size;
     int rays_size=screenWidth*screenHeight;
     cl_float3* cl_float3_image;
+    cl_float2* RNDS;
     
     cl::Context context;
     cl::Program program;
     cl::Buffer buffer_tris;
     cl::Buffer buffer_rays;
+    cl::Buffer buffer_rnds;
     cl::Buffer buffer_colors;
     cl::CommandQueue queue;
 public:
@@ -223,9 +228,11 @@ public:
         queue=cl::CommandQueue(context,default_device);
         
         buffer_rays=cl::Buffer(context,CL_MEM_READ_WRITE,sizeof(Ray)*rays_size);
+        buffer_rnds=cl::Buffer(context,CL_MEM_READ_ONLY,sizeof(cl_float2)*rays_size);
         buffer_colors=cl::Buffer(context,CL_MEM_WRITE_ONLY ,sizeof(cl_float3)*rays_size);
         
         cl_float3_image=new cl_float3[rays_size];
+        RNDS=new cl_float2[rays_size];
         camera=cons_Camera();
     }
     void add_Triangle(Triangle tri){
@@ -249,16 +256,23 @@ public:
         queue.enqueueNDRangeKernel(kernel_gen_ray,cl::NullRange,cl::NDRange(rays_size),cl::NullRange);
     }
     void trace_rays(){
+        for(int i=0;i<rays_size;++i){
+            RNDS[i].s[0]=distribution(generator);
+            RNDS[i].s[1]=distribution(generator);
+        }
+        queue.enqueueWriteBuffer(buffer_rnds,CL_TRUE,0,sizeof(cl_float2)*rays_size,&RNDS[0]);
+        
         //clock_t begin=clock();
         //run the kernel
         cl::Kernel kernel_trace_ray=cl::Kernel(program,"trace_ray");
         kernel_trace_ray.setArg(0,buffer_tris);
         kernel_trace_ray.setArg(1,tris_size);
         kernel_trace_ray.setArg(2,buffer_rays);
-        kernel_trace_ray.setArg(3,buffer_colors);
+        kernel_trace_ray.setArg(3,buffer_rnds);
+        kernel_trace_ray.setArg(4,buffer_colors);
         
         queue.enqueueNDRangeKernel(kernel_trace_ray,cl::NullRange,cl::NDRange(rays_size),cl::NullRange);
-
+        
         queue.enqueueReadBuffer(buffer_colors,CL_TRUE,0,sizeof(cl_float3)*rays_size,cl_float3_image);
         
         clock_t end=clock();
@@ -275,8 +289,18 @@ public:
     }
 };
 
-Scene scene;
+void task1(std::string msg)
+{
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    while(1){
+        //std::cout << "task1 says: " << msg << std::endl;
+        //printf("%d\n",sizeof(cl_float2));
+        //fflush(stdout);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    }
+}
 
+Scene scene;
 void onInitialization( ) { 
     srand(time(0));
     glViewport(0, 0, screenWidth, screenHeight);
@@ -288,12 +312,7 @@ void onInitialization( ) {
     
     
     scene.init_Scene();
-    
-//    for(int i=0;i<25;++i){
-//        Material mat=cons_Material((cl_float3){0.5f, 0.3f, 1.0f+i}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
-//        scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 0.0f, 1000.0f+i}, (cl_float3){0.0f, 1000.0f, 1000.0f+i}, (cl_float3){1000.0f, 1000.0f, 1000.0f+i}, (cl_float3){0.0f, 0.0f, -1.0f}, mat));
-//        scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 1000.0f+i}, (cl_float3){1000.0f, 0.0f, 1000.0f+i}, (cl_float3){0.0f, 0.0f, 1000.0f+i}, (cl_float3){0.0f, 0.0f, -1.0f}, mat));
-//    }
+
     Material mat;
     
     //elől
@@ -327,10 +346,11 @@ void onInitialization( ) {
     scene.add_Triangle(cons_Triangle((cl_float3){250.0f, 0.0f, 250.0f}, (cl_float3){250.0f, 0.0f, 750.0f}, (cl_float3){500.0f, 500.0f, 500.0f}, mat));
     mat=cons_Material((cl_float3){0.0f, 0.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){750.0f, 0.0f, 250.0f}, (cl_float3){500.0f, 500.0f, 500.0f}, (cl_float3){750.0f, 0.0f, 750.0f}, mat));
-    mat=cons_Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
+    mat=cons_Material((cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){250.0f, 0.0f, 750.0f}, (cl_float3){500.0f, 500.0f, 500.0f}, (cl_float3){750.0f, 0.0f, 750.0f}, mat));
     
-    fflush(stdout);
+    std::thread t1(task1, "Hello");
+    t1.detach();
 }
 
 void onDisplay( ) {
@@ -409,6 +429,14 @@ void onIdle( ) {
     newTime = glutGet(GLUT_ELAPSED_TIME)/1000.0f;
     dt=newTime-old;
     
+//    const long nrolls=100000000;  // number of experiments
+//    const int nstars=95;     // maximum number of stars to distribute
+//    const int nintervals=10; // number of intervals
+//
+//    std::default_random_engine generator;
+//    std::uniform_real_distribution<double> distribution(0.0,1.0);
+//    double number = distribution(generator);
+
     float speed=1000.0f;
     if(keys_down[W])
         global_forward=speed*dt;
@@ -423,12 +451,10 @@ void onIdle( ) {
     else
         global_rightward=0;
     
-    printf("fw=%06.2f rw=%06.2f\n", global_forward, global_rightward);
-    
     scene.upload_Triangles();
     scene.generate_rays();
     scene.trace_rays();
-        
+    
     fflush(stdout);
     glutPostRedisplay();
 }

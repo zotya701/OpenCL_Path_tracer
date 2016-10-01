@@ -103,15 +103,13 @@ void ortho_normal_system(const float3* V1, float3* V2, float3* V3){
     (*V3)=v3;
 }
 
-Ray new_ray_diffuse(Hit hit){
+Ray new_ray_diffuse(Hit hit, float2 rnds){
     float3 X,Y,Z;
     Y=hit.N;
     ortho_normal_system(&Y,&Z,&X);
     float rnd1,rnd2,r,theta,x,y,z;
-    //rnd1=RND2;
-    //rnd2=RND2;
-    rnd1=0.0f;
-    rnd2=0.0f;
+    rnd1=rnds.x;
+    rnd2=rnds.y;
     r=sqrt(rnd1);
     theta=2*M_PI*rnd2;
     x=r*cos(theta);
@@ -121,16 +119,16 @@ Ray new_ray_diffuse(Hit hit){
     return cons_Ray(hit.P,new_d);
 }
 
-void kernel trace_ray(global const Triangle* tris, const int tris_size, global Ray* rays, global float3* colors){
+void kernel trace_ray(global const Triangle* tris, const int tris_size, global Ray* rays, global const float2* RNDS, global float3* colors){
     int id=get_global_id(0);
-    Hit hit=first_intersect(tris, tris_size, rays[id]);
+    //printf("id=%06d\n\r", id);
 
-    
+    Hit hit=first_intersect(tris, tris_size, rays[id]);
 
     //printf("hits[%03d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
 
     Ray old_ray=rays[id];
-    Ray new_ray=new_ray_diffuse(hit);
+    Ray new_ray=new_ray_diffuse(hit, RNDS[id]);
     rays[id]=new_ray;
     if(hit.t>0){
         colors[id]=hit.mat.kd;
