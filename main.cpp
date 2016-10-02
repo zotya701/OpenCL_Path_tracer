@@ -120,8 +120,8 @@ Camera cons_Camera(){
     float pitch=0.0f+global_pitch;
     float roll=0.0f;
     
-    float up_length=500.0f;
-    float right_length=500.0f*((float)screenWidth/screenHeight);
+    float up_length=1.0f;
+    float right_length=1.0f*((float)screenWidth/screenHeight);
     float ahead_length=right_length/tan(fov/2.0f/180.0f*3.141593f);
     
     cl_float3 up=(cl_float3){0.0f, 1.0f, 0.0f};
@@ -140,10 +140,7 @@ Camera cons_Camera(){
     for(int i=0;i<3;++i){
         global_shift.s[i]=global_shift.s[i] + ahead.s[i]*global_forward + right.s[i]*global_rightward;
     }
-    
-    //shift=rotate_x(shift, pitch);
-    //shift=rotate_y(shift, yaw);
-    
+
     cam.eye=(cl_float3){500.0f+global_shift.s[0], 500.0f+global_shift.s[1], -1299.037842f+global_shift.s[2]};
     
     cam.up=(cl_float3){up.s[0]*up_length, up.s[1]*up_length, up.s[2]*up_length};
@@ -261,8 +258,7 @@ public:
             RNDS[i].s[1]=distribution(generator);
         }
         queue.enqueueWriteBuffer(buffer_rnds,CL_TRUE,0,sizeof(cl_float2)*rays_size,&RNDS[0]);
-        
-        //clock_t begin=clock();
+
         //run the kernel
         cl::Kernel kernel_trace_ray=cl::Kernel(program,"trace_ray");
         kernel_trace_ray.setArg(0,buffer_tris);
@@ -275,9 +271,6 @@ public:
         
         queue.enqueueReadBuffer(buffer_colors,CL_TRUE,0,sizeof(cl_float3)*rays_size,cl_float3_image);
         
-        clock_t end=clock();
-        //double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-        //printf("%f\n", elapsed_secs);
         for(int i=0;i<rays_size;++i){
             cl_float3 c=cl_float3_image[i];
             //printf("cl_float3_image[%03d] r=%06.2f g=%06.2f b=%06.2f\n", i, c.s[0], c.s[1], c.s[2]);
@@ -315,6 +308,11 @@ void onInitialization( ) {
 
     Material mat;
     
+    //lámpa
+    mat=cons_Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){100.0f, 100.0f, 100.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){3});
+    scene.add_Triangle(cons_Triangle((cl_float3){400.0f, 999.0f, 600.0f}, (cl_float3){400.0f, 999.0f, 400.0f}, (cl_float3){600.0f, 999.0f, 600.0f}, mat));
+    scene.add_Triangle(cons_Triangle((cl_float3){600.0f, 999.0f, 600.0f}, (cl_float3){400.0f, 999.0f, 400.0f}, (cl_float3){600.0f, 999.0f, 400.0f}, mat));
+    
     //elől
     mat=cons_Material((cl_float3){1.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 0.0f, 1000.0f}, (cl_float3){0.0f, 1000.0f, 1000.0f}, (cl_float3){1000.0f, 1000.0f, 1000.0f}, mat));
@@ -351,6 +349,7 @@ void onInitialization( ) {
     
     std::thread t1(task1, "Hello");
     t1.detach();
+    printf("%d\n",sizeof(Ray));
 }
 
 void onDisplay( ) {

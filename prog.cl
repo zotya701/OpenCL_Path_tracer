@@ -127,11 +127,19 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
 
     //printf("hits[%03d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
 
-    Ray old_ray=rays[id];
-    Ray new_ray=new_ray_diffuse(hit, RNDS[id]);
-    rays[id]=new_ray;
     if(hit.t>0){
-        colors[id]=hit.mat.kd;
+        if(hit.mat.type==0){            //diffuse
+            Ray old_ray=rays[id];
+            Ray new_ray=new_ray_diffuse(hit, RNDS[id]);
+            rays[id]=new_ray;
+            colors[id]=hit.mat.kd;
+        }else if(hit.mat.type==1){      //specular
+            
+        }else if(hit.mat.type==2){      //refractive
+            
+        }else{                          //emitter
+            colors[id]=hit.mat.emission;
+        }
     }else{
         colors[id]=(float3)(0.0f, 0.0f, 0.0f);
     }
