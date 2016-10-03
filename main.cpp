@@ -11,8 +11,9 @@
 #include <GL/glut.h>
 #include <CL/cl.hpp>
 
-const int screenWidth=600;
-const int screenHeight=400;
+const int screen_width=600;
+const int screen_height=400;
+int iterations=5;
 float global_yaw=0;
 float global_pitch=0;
 float global_forward=0;;
@@ -121,7 +122,7 @@ Camera cons_Camera(){
     float roll=0.0f;
     
     float up_length=1.0f;
-    float right_length=1.0f*((float)screenWidth/screenHeight);
+    float right_length=1.0f*((float)screen_width/screen_height);
     float ahead_length=right_length/tan(fov/2.0f/180.0f*3.141593f);
     
     cl_float3 up=(cl_float3){0.0f, 1.0f, 0.0f};
@@ -147,8 +148,8 @@ Camera cons_Camera(){
     cam.right=(cl_float3){right.s[0]*right_length, right.s[1]*right_length, right.s[2]*right_length};
     cam.lookat=(cl_float3){cam.eye.s[0]+ahead.s[0]*ahead_length, cam.eye.s[1]+ahead.s[1]*ahead_length, cam.eye.s[2]+ahead.s[2]*ahead_length};
 
-    cam.XM=(cl_float){(float)screenWidth};
-    cam.YM=(cl_float){(float)screenHeight};
+    cam.XM=(cl_float){(float)screen_width};
+    cam.YM=(cl_float){(float)screen_height};
     return cam;
 }
 
@@ -163,14 +164,14 @@ public:
     }
 };
 
-Color color_image[screenWidth*screenHeight];
+Color color_image[screen_width*screen_height];
 
 class Scene{
 private:
     Camera camera;
     std::vector<Triangle> tris;
     int tris_size;
-    int rays_size=screenWidth*screenHeight;
+    int rays_size=screen_width*screen_height;
     cl_float3* cl_float3_image;
     cl_float2* RNDS;
     
@@ -224,12 +225,12 @@ public:
         //create queue to which we will push commands for the device.
         queue=cl::CommandQueue(context,default_device);
         
-        buffer_rays=cl::Buffer(context,CL_MEM_READ_WRITE,sizeof(Ray)*rays_size);
-        buffer_rnds=cl::Buffer(context,CL_MEM_READ_ONLY,sizeof(cl_float2)*rays_size);
+        buffer_rays=cl::Buffer(context,CL_MEM_READ_WRITE,sizeof(Ray)*rays_size*iterations);
+        buffer_rnds=cl::Buffer(context,CL_MEM_READ_ONLY,sizeof(cl_float2)*rays_size*(iterations-1));
         buffer_colors=cl::Buffer(context,CL_MEM_WRITE_ONLY ,sizeof(cl_float3)*rays_size);
         
         cl_float3_image=new cl_float3[rays_size];
-        RNDS=new cl_float2[rays_size];
+        RNDS=new cl_float2[rays_size*(iterations-1)];
         camera=cons_Camera();
     }
     void add_Triangle(Triangle tri){
@@ -239,10 +240,6 @@ public:
         tris_size=tris.size();
         buffer_tris=cl::Buffer(context,CL_MEM_READ_ONLY,sizeof(Triangle)*tris_size);
         queue.enqueueWriteBuffer(buffer_tris,CL_TRUE,0,sizeof(Triangle)*tris_size,&tris[0]);
-        
-//        for(int i=0;i<tris_size;++i){
-//            printf("[%06.2f %06.2f %06.2f]\n", tris[i].N.s[0], tris[i].N.s[1], tris[i].N.s[2]);
-//        }
     }
     void generate_rays(){
         camera=cons_Camera();
@@ -253,11 +250,12 @@ public:
         queue.enqueueNDRangeKernel(kernel_gen_ray,cl::NullRange,cl::NDRange(rays_size),cl::NullRange);
     }
     void trace_rays(){
-        for(int i=0;i<rays_size;++i){
+        int size=rays_size*(iterations-1);
+        for(int i=0;i<size;++i){
             RNDS[i].s[0]=distribution(generator);
             RNDS[i].s[1]=distribution(generator);
         }
-        queue.enqueueWriteBuffer(buffer_rnds,CL_TRUE,0,sizeof(cl_float2)*rays_size,&RNDS[0]);
+        queue.enqueueWriteBuffer(buffer_rnds,CL_TRUE,0,sizeof(cl_float2)*rays_size*(iterations-1),&RNDS[0]);
 
         //run the kernel
         cl::Kernel kernel_trace_ray=cl::Kernel(program,"trace_ray");
@@ -265,7 +263,8 @@ public:
         kernel_trace_ray.setArg(1,tris_size);
         kernel_trace_ray.setArg(2,buffer_rays);
         kernel_trace_ray.setArg(3,buffer_rnds);
-        kernel_trace_ray.setArg(4,buffer_colors);
+        kernel_trace_ray.setArg(4,iterations);
+        kernel_trace_ray.setArg(5,buffer_colors);
         
         queue.enqueueNDRangeKernel(kernel_trace_ray,cl::NullRange,cl::NDRange(rays_size),cl::NullRange);
         
@@ -296,11 +295,11 @@ void task1(std::string msg)
 Scene scene;
 void onInitialization( ) { 
     srand(time(0));
-    glViewport(0, 0, screenWidth, screenHeight);
+    glViewport(0, 0, screen_width, screen_height);
 
-    for(int Y = 0; Y < screenHeight; Y++)
-        for(int X = 0; X < screenWidth; X++){
-            color_image[Y*screenWidth + X] = Color((float)Y/screenHeight, (float)X/screenWidth, 0);
+    for(int Y = 0; Y < screen_height; Y++)
+        for(int X = 0; X < screen_width; X++){
+            color_image[Y*screen_width + X] = Color((float)Y/screen_height, (float)X/screen_width, 0);
         }
     
     
@@ -350,25 +349,28 @@ void onInitialization( ) {
     std::thread t1(task1, "Hello");
     t1.detach();
     printf("%d\n",sizeof(Ray));
+    iterations=1;
 }
 
 void onDisplay( ) {
     glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glDrawPixels(screenWidth, screenHeight, GL_RGB, GL_FLOAT, color_image);
+    glDrawPixels(screen_width, screen_height, GL_RGB, GL_FLOAT, color_image);
     
     glutSwapBuffers();
 }
 
 void onKeyboard(unsigned char key, int x, int y) {
-    if(key==' '){
-        printf("Render!\n");fflush(stdout);
-        scene.upload_Triangles();
-        scene.generate_rays();
-        scene.trace_rays();
-        glutPostRedisplay();
-        printf("Render finished!\n");fflush(stdout);
+    if(key=='-'){
+        if(iterations>1){
+            iterations--;
+        }
+    }
+    if(key=='+'){
+        if(iterations<5){
+            iterations++;
+        }
     }
     switch(key) {
         case 'w': case 'W':
@@ -404,9 +406,17 @@ void onKeyboardUp(unsigned char key, int x, int y) {
 }
 
 int last_x, last_y;
-void onMouse(int, int, int x, int y) {
+bool mouse_down=false;
+void onMouse(int button, int state, int x, int y) {
     last_x = x;
     last_y = y;
+    if ((button == GLUT_LEFT_BUTTON ) && (state == GLUT_DOWN)){
+        mouse_down=true;
+    }
+
+    if ((button == GLUT_LEFT_BUTTON ) && (state == GLUT_UP)){
+        mouse_down=false;
+    }
 }
  
 void onMouseMotion(int x, int y) {
@@ -424,6 +434,11 @@ float old=0;
 float newTime=0;
 float dt=0;
 void onIdle( ) {
+    int before=iterations;
+    if(keys_down[W] || keys_down[A] || keys_down[S] || keys_down[D] || mouse_down){
+        iterations=1;
+    }
+    
     old = newTime;
     newTime = glutGet(GLUT_ELAPSED_TIME)/1000.0f;
     dt=newTime-old;
@@ -456,11 +471,12 @@ void onIdle( ) {
     
     fflush(stdout);
     glutPostRedisplay();
+    iterations=before;
 }
 
 int main(int argc, char **argv) {
     glutInit(&argc, argv); 				// GLUT inicializalasa
-    glutInitWindowSize(screenWidth, screenHeight);	// Alkalmazas ablak kezdeti merete 600x600 pixel 
+    glutInitWindowSize(screen_width, screen_height);	// Alkalmazas ablak kezdeti merete 600x600 pixel 
     glutInitWindowPosition(100, 100);			// Az elozo alkalmazas ablakhoz kepest hol tunik fel
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH);	// 8 bites R,G,B,A + dupla buffer + melyseg buffer
 

@@ -119,43 +119,80 @@ Ray new_ray_diffuse(Hit hit, float2 rnds){
     return cons_Ray(hit.P,new_d);
 }
 
-void kernel trace_ray(global const Triangle* tris, const int tris_size, global Ray* rays, global const float2* RNDS, global float3* colors){
-    int id=get_global_id(0);
-    //printf("id=%06d\n\r", id);
+void kernel trace_ray(global const Triangle* tris, const int tris_size, global Ray* rays, global const float2* RNDS, const int iterations, global float3* colors){
+    for(int current=0; current<iterations; ++current){
+        int rays_size=get_global_size(0);
+        int id=get_global_id(0)+(rays_size*current);
+        //printf("id=%06d rays_size=%06d\n\r", id, rays_size);
 
-    Hit hit=first_intersect(tris, tris_size, rays[id]);
+        Hit hit=first_intersect(tris, tris_size, rays[id]);
 
-    //printf("hits[%03d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
+        //printf("hits[%03d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
 
-    if(hit.t>0){
-        if(hit.mat.type==0){            //diffuse
-            Ray old_ray=rays[id];
-            Ray new_ray=new_ray_diffuse(hit, RNDS[id]);
-            rays[id]=new_ray;
-            colors[id]=hit.mat.kd;
-        }else if(hit.mat.type==1){      //specular
-            
-        }else if(hit.mat.type==2){      //refractive
-            
-        }else{                          //emitter
-            colors[id]=hit.mat.emission;
+        if(iterations==1){
+            if(hit.t>0){
+                if(hit.mat.type==0){            //diffuse
+                    colors[id]=hit.mat.kd;
+                }else if(hit.mat.type==1){      //specular
+
+                }else if(hit.mat.type==2){      //refractive
+
+                }else{                          //emitter
+                    colors[id]=hit.mat.emission;
+                }
+            }else{
+                colors[id]=(float3)(0.0f, 0.0f, 0.0f);
+            }
         }
-    }else{
-        colors[id]=(float3)(0.0f, 0.0f, 0.0f);
+
+        if(current<iterations-1){
+            if(hit.t>0){
+                if(hit.mat.type==0){            //diffuse
+                    Ray old_ray=rays[id];
+                    Ray new_ray=new_ray_diffuse(hit, RNDS[id]);
+                    rays[id+rays_size]=new_ray;
+                }else if(hit.mat.type==1){      //specular
+
+                }else if(hit.mat.type==2){      //refractive
+
+                }else{                          //emitter
+                    Ray old_ray=rays[id];
+                    Ray new_ray=new_ray_diffuse(hit, RNDS[id]);
+                    rays[id+rays_size]=new_ray;
+                }
+            }else{
+                rays[id+rays_size]=rays[id];
+            }
+        }else{
+            if(hit.t>0){
+                if(hit.mat.type==0){            //diffuse
+                    colors[id-rays_size*current]=hit.mat.kd;
+                }else if(hit.mat.type==1){      //specular
+
+                }else if(hit.mat.type==2){      //refractive
+
+                }else{                          //emitter
+                    colors[id-rays_size*current]=hit.mat.emission;
+                }
+            }else{
+                //rays[id+rays_size]=rays[id];
+                colors[id-rays_size*current]=(float3)(0.0f, 0.0f, 0.0f);
+            }
+        }
+
+        //if(id>180000 && id<180004){
+        //    printf("colors[%06d]: [%06.2f %06.2f %06.2f]\n\r", id, colors[id].x, colors[id].y, colors[id].z);
+        //    printf("hits[%06d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
+        //}
+        //printf("colors[%06d]: [%06.2f %06.2f %06.2f]\t", id, colors[id].x, colors[id].y, colors[id].z);
+        //printf("hits[%06d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
+
+        //printf("old P=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n\r", old_ray.P.x, old_ray.P.y, old_ray.P.z, old_ray.D.x, old_ray.D.y, old_ray.D.z);
+        //printf("new P=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n\r", new_ray.P.x, new_ray.P.y, new_ray.P.z, new_ray.D.x, new_ray.D.y, new_ray.D.z);
+
+        //printf("id=%02d \t%f %d\n\r", id, hit.mat.n, hit.mat.type);
+        //printf("rays[%03d]=\tP=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n\r", id, rays[id].P.x, rays[id].P.y, rays[id].P.z, rays[id].D.x, rays[id].D.y, rays[id].D.z);
     }
-
-    //if(id>180000 && id<180004){
-    //    printf("colors[%06d]: [%06.2f %06.2f %06.2f]\n\r", id, colors[id].x, colors[id].y, colors[id].z);
-    //    printf("hits[%06d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
-    //}
-    //printf("colors[%06d]: [%06.2f %06.2f %06.2f]\t", id, colors[id].x, colors[id].y, colors[id].z);
-    //printf("hits[%06d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
-
-    //printf("old P=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n\r", old_ray.P.x, old_ray.P.y, old_ray.P.z, old_ray.D.x, old_ray.D.y, old_ray.D.z);
-    //printf("new P=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n\r", new_ray.P.x, new_ray.P.y, new_ray.P.z, new_ray.D.x, new_ray.D.y, new_ray.D.z);
-
-    //printf("id=%02d \t%f %d\n\r", id, hit.mat.n, hit.mat.type);
-    //printf("rays[%03d]=\tP=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n\r", id, rays[id].P.x, rays[id].P.y, rays[id].P.z, rays[id].D.x, rays[id].D.y, rays[id].D.z);
 }
 
 void kernel gen_ray(global Ray* rays, const Camera camera){
