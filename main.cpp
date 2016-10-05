@@ -11,9 +11,9 @@
 #include <GL/glut.h>
 #include <CL/cl.hpp>
 
-const int screen_width=600;
-const int screen_height=600;
-const int max_iterations=7;
+const int screen_width=300;
+const int screen_height=300;
+const int max_iterations=15;
 int iterations=1;
 int current_iteration=0;
 float global_yaw=0;
@@ -185,7 +185,69 @@ private:
     cl::Buffer buffer_colors;
     cl::CommandQueue queue;
 public:
+    void list_info(){
+        int i, j;
+        char* value;
+        size_t valueSize;
+        cl_uint platformCount;
+        cl_platform_id* platforms;
+        cl_uint deviceCount;
+        cl_device_id* devices;
+        cl_uint maxComputeUnits;
+
+        // get all platforms
+        clGetPlatformIDs(0, NULL, &platformCount);
+        platforms = (cl_platform_id*) malloc(sizeof(cl_platform_id) * platformCount);
+        clGetPlatformIDs(platformCount, platforms, NULL);
+
+        for (i = 0; i < platformCount; i++) {
+            // get all devices
+            clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 0, NULL, &deviceCount);
+            devices = (cl_device_id*) malloc(sizeof(cl_device_id) * deviceCount);
+            clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, deviceCount, devices, NULL);
+
+            // for each device print critical attributes
+            for (j = 0; j < deviceCount; j++) {
+                // print device name
+                clGetDeviceInfo(devices[j], CL_DEVICE_NAME, 0, NULL, &valueSize);
+                value = (char*) malloc(valueSize);
+                clGetDeviceInfo(devices[j], CL_DEVICE_NAME, valueSize, value, NULL);
+                printf("%d. Device: %s\n", j+1, value);
+                free(value);
+
+                // print hardware device version
+                clGetDeviceInfo(devices[j], CL_DEVICE_VERSION, 0, NULL, &valueSize);
+                value = (char*) malloc(valueSize);
+                clGetDeviceInfo(devices[j], CL_DEVICE_VERSION, valueSize, value, NULL);
+                printf(" %d.%d Hardware version: %s\n", j+1, 1, value);
+                free(value);
+
+                // print software driver version
+                clGetDeviceInfo(devices[j], CL_DRIVER_VERSION, 0, NULL, &valueSize);
+                value = (char*) malloc(valueSize);
+                clGetDeviceInfo(devices[j], CL_DRIVER_VERSION, valueSize, value, NULL);
+                printf(" %d.%d Software version: %s\n", j+1, 2, value);
+                free(value);
+
+                // print c version supported by compiler for device
+                clGetDeviceInfo(devices[j], CL_DEVICE_OPENCL_C_VERSION, 0, NULL, &valueSize);
+                value = (char*) malloc(valueSize);
+                clGetDeviceInfo(devices[j], CL_DEVICE_OPENCL_C_VERSION, valueSize, value, NULL);
+                printf(" %d.%d OpenCL C version: %s\n", j+1, 3, value);
+                free(value);
+
+                // print parallel compute units
+                clGetDeviceInfo(devices[j], CL_DEVICE_MAX_COMPUTE_UNITS,
+                        sizeof(maxComputeUnits), &maxComputeUnits, NULL);
+                printf(" %d.%d Parallel compute units: %d\n", j+1, 4, maxComputeUnits);
+            }
+            free(devices);
+        }
+        free(platforms);
+    }
     void init_Scene(){
+        list_info();
+        
         //get all platforms (drivers)
         std::vector<cl::Platform> all_platforms;
         cl::Platform::get(&all_platforms);
@@ -312,32 +374,32 @@ void onInitialization( ) {
     Material mat;
     
     //lámpa
-    mat=cons_Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){50.0f, 50.0f, 50.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){0}, (cl_int){3});
+    mat=cons_Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){50.0f, 50.0f, 50.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){0}, (cl_int){3});
     scene.add_Triangle(cons_Triangle((cl_float3){300.0f, 999.0f, 700.0f}, (cl_float3){300.0f, 999.0f, 300.0f}, (cl_float3){700.0f, 999.0f, 700.0f}, mat));
     scene.add_Triangle(cons_Triangle((cl_float3){700.0f, 999.0f, 700.0f}, (cl_float3){300.0f, 999.0f, 300.0f}, (cl_float3){700.0f, 999.0f, 300.0f}, mat));
     
     //elől
-    mat=cons_Material((cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){100}, (cl_int){0});
+    mat=cons_Material((cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){100}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 0.0f, 1000.0f}, (cl_float3){0.0f, 1000.0f, 1000.0f}, (cl_float3){1000.0f, 1000.0f, 1000.0f}, mat));
     scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 1000.0f}, (cl_float3){1000.0f, 0.0f, 1000.0f}, (cl_float3){0.0f, 0.0f, 1000.0f}, mat));
     
     //balra
-    mat=cons_Material((cl_float3){1.0f, 0.0f, 0.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){100}, (cl_int){0});
+    mat=cons_Material((cl_float3){0.3f, 0.1f, 0.1f}, (cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){50}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 0.0f, 1000.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 1000.0f, 1000.0f}, mat));
     scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 1000.0f, 1000.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 1000.0f, 0.0f}, mat));
     
     //jobbra
-    mat=cons_Material((cl_float3){0.0f, 1.0f, 0.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){100}, (cl_int){0});
+    mat=cons_Material((cl_float3){0.1f, 0.3f, 0.1f}, (cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){50}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 1000.0f}, (cl_float3){1000.0f, 0.0f, 0.0f}, (cl_float3){1000.0f, 0.0f, 1000.0f}, mat));
     scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 0.0f}, (cl_float3){1000.0f, 0.0f, 0.0f}, (cl_float3){1000.0f, 1000.0f, 1000.0f}, mat));
     
     //alul
-    mat=cons_Material((cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){100}, (cl_int){0});
+    mat=cons_Material((cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){100}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 1000.0f}, (cl_float3){1000.0f, 0.0f, 1000.0f}, mat));
     scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 0.0f, 1000.0f}, (cl_float3){1000.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, mat));
     
     //felül
-    mat=cons_Material((cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){100}, (cl_int){0});
+    mat=cons_Material((cl_float3){1.3f, 1.3f, 1.3f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){100}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 1000.0f, 1000.0f}, (cl_float3){0.0f, 1000.0f, 0.0f}, (cl_float3){1000.0f, 1000.0f, 1000.0f}, mat));
     scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 1000.0f}, (cl_float3){0.0f, 1000.0f, 0.0f}, (cl_float3){1000.0f, 1000.0f, 0.0f}, mat));
     
@@ -350,8 +412,10 @@ void onInitialization( ) {
 //    //mat=cons_Material((cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){10}, (cl_int){0});
 //    scene.add_Triangle(cons_Triangle((cl_float3){500.0f, 500.0f, 500.0f}, (cl_float3){250.0f, 0.0f, 750.0f}, (cl_float3){750.0f, 0.0f, 750.0f}, mat));
     
-    mat=cons_Material((cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){100}, (cl_int){0});
-    scene.add_Triangle(cons_Triangle((cl_float3){100.0f, 300.0f, 300.0f}, (cl_float3){300.0f, 700.0f, 700.0f}, (cl_float3){700.0f, 500.0f, 500.0f}, mat));
+    //mat=cons_Material((cl_float3){0.0f, 0.3f, 0.3f}, (cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){10}, (cl_int){0});
+//    mat=cons_Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){10.0f, 10.0f, 10.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){0}, (cl_int){3});
+//    scene.add_Triangle(cons_Triangle((cl_float3){300.0f, 300.0f, 300.0f}, (cl_float3){300.0f, 700.0f, 700.0f}, (cl_float3){700.0f, 300.0f, 300.0f}, mat));
+//    scene.add_Triangle(cons_Triangle((cl_float3){700.0f, 300.0f, 300.0f}, (cl_float3){300.0f, 700.0f, 700.0f}, (cl_float3){700.0f, 700.0f, 700.0f}, mat));
     
     std::thread t1(task1, "Hello");
     t1.detach();
@@ -463,13 +527,9 @@ void onIdle( ) {
     newTime = glutGet(GLUT_ELAPSED_TIME)/1000.0f;
     dt=newTime-old;
     
-//    const long nrolls=100000000;  // number of experiments
-//    const int nstars=95;     // maximum number of stars to distribute
-//    const int nintervals=10; // number of intervals
-//
-//    std::default_random_engine generator;
-//    std::uniform_real_distribution<double> distribution(0.0,1.0);
-//    double number = distribution(generator);
+    
+    printf("\r                                    \r");
+    printf("Iteration=%06d, Rays=%010d", current_iteration, current_iteration*iterations*screen_width*screen_height);
 
     float speed=1000.0f;
     if(keys_down[W])
@@ -497,7 +557,7 @@ void onIdle( ) {
 
 int main(int argc, char **argv) {
     glutInit(&argc, argv); 				// GLUT inicializalasa
-    glutInitWindowSize(screen_width, screen_height);	// Alkalmazas ablak kezdeti merete 600x600 pixel 
+    glutInitWindowSize(screen_width, screen_height+100);	// Alkalmazas ablak kezdeti merete 600x600 pixel 
     glutInitWindowPosition(100, 100);			// Az elozo alkalmazas ablakhoz kepest hol tunik fel
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH);	// 8 bites R,G,B,A + dupla buffer + melyseg buffer
 
