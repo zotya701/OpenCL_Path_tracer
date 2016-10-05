@@ -43,6 +43,9 @@ Ray camera_get_ray(int id, Camera cam){
     
     return cons_Ray(cam.eye, d);
 }
+float3 camera_get_view_dir(Hit hit, Camera cam){
+    return normalize((cam.eye-hit.P));
+}
 
 Hit triangle_intersect(Triangle tri, Ray ray){
     float3 P=ray.P;
@@ -103,9 +106,12 @@ void ortho_normal_system(const float3* V1, float3* V2, float3* V3){
     (*V3)=v3;
 }
 
-Ray new_ray_diffuse(Hit hit, float2 rnds){
+Ray new_ray_diffuse(Hit hit, float2 rnds, Ray old_ray){
     float3 X,Y,Z;
     Y=hit.N;
+    if(dot(old_ray.D,hit.N)>0){
+        Y=-Y;
+    }
     ortho_normal_system(&Y,&Z,&X);
     float rnd1,rnd2,r,theta,x,y,z;
     rnd1=rnds.x;
@@ -116,10 +122,18 @@ Ray new_ray_diffuse(Hit hit, float2 rnds){
     y=r*sin(theta);
     z=sqrt(fmax(0.0f, 1-rnd1));
     float3 new_d = normalize(X*x+Y*z+Z*y);
-    return cons_Ray(hit.P,new_d);
+    return cons_Ray(hit.P+Y*0.001f,new_d);
 }
 
-void kernel trace_ray(global const Triangle* tris, const int tris_size, global Ray* rays, global const float2* RNDS, const int iterations, global float3* colors){
+void kernel trace_ray(global const Triangle* tris, const int tris_size, global Ray* rays, global const float2* RNDS, const int iterations, const int current_iteration, const Camera cam, global float3* colors){
+    float3 factor_A, factor_B;
+    float3 factor=(float3)(1.0f, 1.0f, 1.0f);
+    float3 color=(float3)(0.0f, 0.0f, 0.0f);
+    
+    if(current_iteration==0){
+        colors[get_global_id(0)]=color;
+    }
+
     for(int current=0; current<iterations; ++current){
         int rays_size=get_global_size(0);
         int id=get_global_id(0)+(rays_size*current);
@@ -127,7 +141,9 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
 
         Hit hit=first_intersect(tris, tris_size, rays[id]);
 
-        //printf("hits[%03d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
+        //if(id==1275 || id==1275+rays_size){
+        //    printf("hits[%03d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
+        //}
 
         if(iterations==1){
             if(hit.t>0){
@@ -143,22 +159,36 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
             }else{
                 colors[id]=(float3)(0.0f, 0.0f, 0.0f);
             }
-        }
-
-        if(current<iterations-1){
+        }else if(current<iterations-1){
             if(hit.t>0){
                 if(hit.mat.type==0){            //diffuse
                     Ray old_ray=rays[id];
-                    Ray new_ray=new_ray_diffuse(hit, RNDS[id]);
+                    Ray new_ray=new_ray_diffuse(hit, RNDS[id], old_ray);
                     rays[id+rays_size]=new_ray;
+
+                    float cos_theta=0.0f;
+                    float cos_delta=0.0f;
+
+                    cos_theta=dot(new_ray.D, hit.N);
+                    factor_A=hit.mat.kd*fmax(0.0f, cos_theta);
+
+                    float3 halfway=normalize(camera_get_view_dir(hit, cam) + new_ray.D);
+                    cos_delta=dot(hit.N, halfway);
+                    factor_B=hit.mat.ks*pow(fmax(0.0f, cos_delta), hit.mat.shininess);
+
+                    factor=factor*(factor_A + factor_B);
+
+                    //printf("id=%010d %f %f %f \t %f %f %f \t %f %f %f\n\r", current, factor_A.x, factor_A.y, factor_A.z, factor_B.x, factor_B.y, factor_B.z, factor.x, factor.y, factor.z);
                 }else if(hit.mat.type==1){      //specular
 
                 }else if(hit.mat.type==2){      //refractive
 
                 }else{                          //emitter
                     Ray old_ray=rays[id];
-                    Ray new_ray=new_ray_diffuse(hit, RNDS[id]);
+                    //Ray new_ray=new_ray_diffuse(hit, RNDS[id], old_ray);
+                    Ray new_ray=rays[id];
                     rays[id+rays_size]=new_ray;
+                    color=hit.mat.emission;
                 }
             }else{
                 rays[id+rays_size]=rays[id];
@@ -166,17 +196,21 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
         }else{
             if(hit.t>0){
                 if(hit.mat.type==0){            //diffuse
-                    colors[id-rays_size*current]=hit.mat.kd;
+                    //colors[id-rays_size*current]=(float3)(color.x*factor.x, color.y*factor.y, color.z*factor.z);
+                    colors[id-rays_size*current]=(colors[id-rays_size*current]*current_iteration + (float3)(color.x*factor.x, color.y*factor.y, color.z*factor.z))/(current_iteration+1);
                 }else if(hit.mat.type==1){      //specular
 
                 }else if(hit.mat.type==2){      //refractive
 
                 }else{                          //emitter
-                    colors[id-rays_size*current]=hit.mat.emission;
+                    color=hit.mat.emission;
+                    //colors[id-rays_size*current]=(float3)(color.x*factor.x, color.y*factor.y, color.z*factor.z);
+                    colors[id-rays_size*current]=(colors[id-rays_size*current]*current_iteration + (float3)(color.x*factor.x, color.y*factor.y, color.z*factor.z))/(current_iteration+1);
                 }
             }else{
                 //rays[id+rays_size]=rays[id];
-                colors[id-rays_size*current]=(float3)(0.0f, 0.0f, 0.0f);
+                //colors[id-rays_size*current]=(float3)(0.0f, 0.0f, 0.0f);
+                colors[id-rays_size*current]=(colors[id-rays_size*current]*current_iteration + (float3)(0.0f, 0.0f, 0.0f))/(current_iteration+1);
             }
         }
 

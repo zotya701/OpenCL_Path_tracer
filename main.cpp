@@ -11,9 +11,11 @@
 #include <GL/glut.h>
 #include <CL/cl.hpp>
 
-const int screen_width=600;
-const int screen_height=400;
-int iterations=5;
+const int screen_width=300;
+const int screen_height=300;
+const int max_iterations=5;
+int iterations=1;
+int current_iteration=0;
 float global_yaw=0;
 float global_pitch=0;
 float global_forward=0;;
@@ -225,12 +227,12 @@ public:
         //create queue to which we will push commands for the device.
         queue=cl::CommandQueue(context,default_device);
         
-        buffer_rays=cl::Buffer(context,CL_MEM_READ_WRITE,sizeof(Ray)*rays_size*iterations);
-        buffer_rnds=cl::Buffer(context,CL_MEM_READ_ONLY,sizeof(cl_float2)*rays_size*(iterations-1));
+        buffer_rays=cl::Buffer(context,CL_MEM_READ_WRITE,sizeof(Ray)*rays_size*max_iterations);
+        buffer_rnds=cl::Buffer(context,CL_MEM_READ_ONLY,sizeof(cl_float2)*rays_size*(max_iterations-1));
         buffer_colors=cl::Buffer(context,CL_MEM_WRITE_ONLY ,sizeof(cl_float3)*rays_size);
         
         cl_float3_image=new cl_float3[rays_size];
-        RNDS=new cl_float2[rays_size*(iterations-1)];
+        RNDS=new cl_float2[rays_size*(max_iterations-1)];
         camera=cons_Camera();
     }
     void add_Triangle(Triangle tri){
@@ -264,7 +266,9 @@ public:
         kernel_trace_ray.setArg(2,buffer_rays);
         kernel_trace_ray.setArg(3,buffer_rnds);
         kernel_trace_ray.setArg(4,iterations);
-        kernel_trace_ray.setArg(5,buffer_colors);
+        kernel_trace_ray.setArg(5,current_iteration);
+        kernel_trace_ray.setArg(6,camera);
+        kernel_trace_ray.setArg(7,buffer_colors);
         
         queue.enqueueNDRangeKernel(kernel_trace_ray,cl::NullRange,cl::NDRange(rays_size),cl::NullRange);
         
@@ -308,48 +312,47 @@ void onInitialization( ) {
     Material mat;
     
     //lámpa
-    mat=cons_Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){100.0f, 100.0f, 100.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){3});
+    mat=cons_Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){50.0f, 50.0f, 50.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){0}, (cl_int){3});
     scene.add_Triangle(cons_Triangle((cl_float3){400.0f, 999.0f, 600.0f}, (cl_float3){400.0f, 999.0f, 400.0f}, (cl_float3){600.0f, 999.0f, 600.0f}, mat));
     scene.add_Triangle(cons_Triangle((cl_float3){600.0f, 999.0f, 600.0f}, (cl_float3){400.0f, 999.0f, 400.0f}, (cl_float3){600.0f, 999.0f, 400.0f}, mat));
     
     //elől
-    mat=cons_Material((cl_float3){1.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
+    mat=cons_Material((cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){10}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 0.0f, 1000.0f}, (cl_float3){0.0f, 1000.0f, 1000.0f}, (cl_float3){1000.0f, 1000.0f, 1000.0f}, mat));
     scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 1000.0f}, (cl_float3){1000.0f, 0.0f, 1000.0f}, (cl_float3){0.0f, 0.0f, 1000.0f}, mat));
     
     //balra
-    mat=cons_Material((cl_float3){0.0f, 1.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
+    mat=cons_Material((cl_float3){1.0f, 0.0f, 0.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){10}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 0.0f, 1000.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 1000.0f, 1000.0f}, mat));
     scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 1000.0f, 1000.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 1000.0f, 0.0f}, mat));
     
     //jobbra
-    mat=cons_Material((cl_float3){0.0f, 0.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
+    mat=cons_Material((cl_float3){0.0f, 1.0f, 0.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){10}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 1000.0f}, (cl_float3){1000.0f, 0.0f, 0.0f}, (cl_float3){1000.0f, 0.0f, 1000.0f}, mat));
     scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 0.0f}, (cl_float3){1000.0f, 0.0f, 0.0f}, (cl_float3){1000.0f, 1000.0f, 1000.0f}, mat));
     
     //alul
-    mat=cons_Material((cl_float3){1.0f, 1.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
+    mat=cons_Material((cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){10}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 1000.0f}, (cl_float3){1000.0f, 0.0f, 1000.0f}, mat));
     scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 0.0f, 1000.0f}, (cl_float3){1000.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, mat));
     
     //felül
-    mat=cons_Material((cl_float3){0.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
+    mat=cons_Material((cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){10}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 1000.0f, 1000.0f}, (cl_float3){0.0f, 1000.0f, 0.0f}, (cl_float3){1000.0f, 1000.0f, 1000.0f}, mat));
     scene.add_Triangle(cons_Triangle((cl_float3){1000.0f, 1000.0f, 1000.0f}, (cl_float3){0.0f, 1000.0f, 0.0f}, (cl_float3){1000.0f, 1000.0f, 0.0f}, mat));
     
-    mat=cons_Material((cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
+    mat=cons_Material((cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){10}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){250.0f, 0.0f, 250.0f}, (cl_float3){500.0f, 500.0f, 500.0f}, (cl_float3){750.0f, 0.0f, 250.0f}, mat));
-    mat=cons_Material((cl_float3){0.0f, 1.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
+    //mat=cons_Material((cl_float3){0.0f, 1.0f, 0.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){10}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){250.0f, 0.0f, 250.0f}, (cl_float3){250.0f, 0.0f, 750.0f}, (cl_float3){500.0f, 500.0f, 500.0f}, mat));
-    mat=cons_Material((cl_float3){0.0f, 0.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
+    //mat=cons_Material((cl_float3){0.0f, 0.0f, 1.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){10}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){750.0f, 0.0f, 250.0f}, (cl_float3){500.0f, 500.0f, 500.0f}, (cl_float3){750.0f, 0.0f, 750.0f}, mat));
-    mat=cons_Material((cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){5}, (cl_int){0});
+    //mat=cons_Material((cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){10}, (cl_int){0});
     scene.add_Triangle(cons_Triangle((cl_float3){250.0f, 0.0f, 750.0f}, (cl_float3){500.0f, 500.0f, 500.0f}, (cl_float3){750.0f, 0.0f, 750.0f}, mat));
     
     std::thread t1(task1, "Hello");
     t1.detach();
     printf("%d\n",sizeof(Ray));
-    iterations=1;
 }
 
 void onDisplay( ) {
@@ -361,16 +364,22 @@ void onDisplay( ) {
     glutSwapBuffers();
 }
 
+bool space=false;
 void onKeyboard(unsigned char key, int x, int y) {
     if(key=='-'){
         if(iterations>1){
             iterations--;
+            current_iteration=0;
         }
     }
     if(key=='+'){
-        if(iterations<5){
+        if(iterations<max_iterations){
             iterations++;
+            current_iteration=0;
         }
+    }
+    if(key==' '){
+        space=!space;
     }
     switch(key) {
         case 'w': case 'W':
@@ -392,15 +401,19 @@ void onKeyboardUp(unsigned char key, int x, int y) {
     switch(key) {
         case 'w': case 'W':
             keys_down[W] = false;
+            current_iteration=0;
         break;
         case 's': case 'S':
             keys_down[S] = false;
+            current_iteration=0;
         break;
         case 'a': case 'A':
             keys_down[A] = false;
+            current_iteration=0;
         break;
         case 'd': case 'D':
             keys_down[D] = false;
+            current_iteration=0;
         break;
     }
 }
@@ -412,10 +425,12 @@ void onMouse(int button, int state, int x, int y) {
     last_y = y;
     if ((button == GLUT_LEFT_BUTTON ) && (state == GLUT_DOWN)){
         mouse_down=true;
+        current_iteration=0;
     }
 
     if ((button == GLUT_LEFT_BUTTON ) && (state == GLUT_UP)){
         mouse_down=false;
+        current_iteration=0;
     }
 }
  
@@ -436,7 +451,9 @@ float dt=0;
 void onIdle( ) {
     int before=iterations;
     if(keys_down[W] || keys_down[A] || keys_down[S] || keys_down[D] || mouse_down){
-        iterations=1;
+        if(!space)
+            iterations=1;
+        current_iteration=0;
     }
     
     old = newTime;
@@ -472,6 +489,7 @@ void onIdle( ) {
     fflush(stdout);
     glutPostRedisplay();
     iterations=before;
+    current_iteration++;
 }
 
 int main(int argc, char **argv) {
