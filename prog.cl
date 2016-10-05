@@ -141,8 +141,7 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
         if(iterations==1){                      //only kd color
             if(hit.t>0){
                 if(hit.mat.type==0){            //diffuse
-                    colors[id]=hit.mat.kd;
-                    /*Ray old_ray=rays[id];
+                    Ray old_ray=rays[id];
 
                     float3 p1=(float3)(300.0f, 999.9f, 300.0f);
                     float3 p2=(float3)(700.0f, 999.9f, 300.0f);
@@ -159,19 +158,22 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
 
                     if(shadow_hit.t<length(p-shadow_ray.P)*0.99f){
                         colors[id]=color;
-                    }else if(shadow_hit.mat.type==3 && dot(shadow_ray.D,shadow_hit.N)<0){
+                    }else if(shadow_hit.mat.type==3){
                         float cos_theta=0.0f;
                         float cos_delta=0.0f;
 
                         cos_theta=dot(shadow_ray.D, hit.N);
-                        color=color + shadow_hit.mat.emission*hit.mat.kd*fmax(0.0f, cos_theta);
+                        color=shadow_hit.mat.emission*hit.mat.kd*fmax(0.0f, cos_theta);
 
                         float3 halfway=normalize(camera_get_view_dir(hit, cam) + shadow_ray.D);
                         cos_delta=dot(hit.N, halfway);
                         color=color + shadow_hit.mat.emission*hit.mat.ks*pow(fmax(0.0f, cos_delta), hit.mat.shininess);
 
-                        colors[id]=(colors[id]*current_iteration + color)/(current_iteration+1);
-                    }*/
+                        //colors[id]=(colors[id]*current_iteration + color)/(current_iteration+1);
+                        if(dot(rays[id].D,hit.N)<0){
+                            colors[id]=(colors[id]*current_iteration + color)/(current_iteration+1);
+                        }
+                    }
                 }else if(hit.mat.type==1){      //specular
 
                 }else if(hit.mat.type==2){      //refractive

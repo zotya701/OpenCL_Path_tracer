@@ -13,7 +13,7 @@
 
 const int screen_width=600;
 const int screen_height=400;
-const int max_iterations=15;
+const int max_iterations=7;
 int iterations=1;
 int current_iteration=0;
 float global_yaw=0;
@@ -290,11 +290,11 @@ public:
         queue=cl::CommandQueue(context,default_device);
         
         buffer_rays=cl::Buffer(context,CL_MEM_READ_WRITE,sizeof(Ray)*rays_size);
-        buffer_rnds=cl::Buffer(context,CL_MEM_READ_ONLY,sizeof(cl_float2)*rays_size*(max_iterations-1));
+        buffer_rnds=cl::Buffer(context,CL_MEM_READ_ONLY,sizeof(cl_float2)*rays_size*max_iterations);
         buffer_colors=cl::Buffer(context,CL_MEM_WRITE_ONLY ,sizeof(cl_float3)*rays_size);
         
         cl_float3_image=new cl_float3[rays_size];
-        RNDS=new cl_float2[rays_size*(max_iterations-1)];
+        RNDS=new cl_float2[rays_size*max_iterations];
         camera=cons_Camera();
     }
     void add_Triangle(Triangle tri){
@@ -314,12 +314,11 @@ public:
         queue.enqueueNDRangeKernel(kernel_gen_ray,cl::NullRange,cl::NDRange(rays_size),cl::NullRange);
     }
     void trace_rays(){
-        int size=rays_size*(max_iterations-1);
-        for(int i=0;i<size;++i){
+        for(int i=0;i<rays_size*max_iterations;++i){
             RNDS[i].s[0]=distribution(generator);
             RNDS[i].s[1]=distribution(generator);
         }
-        queue.enqueueWriteBuffer(buffer_rnds,CL_TRUE,0,sizeof(cl_float2)*rays_size*(max_iterations-1),&RNDS[0]);
+        queue.enqueueWriteBuffer(buffer_rnds,CL_TRUE,0,sizeof(cl_float2)*rays_size*max_iterations,&RNDS[0]);
 
         //run the kernel
         cl::Kernel kernel_trace_ray=cl::Kernel(program,"trace_ray");
