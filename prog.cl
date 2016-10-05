@@ -153,24 +153,23 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
 
                     float3 p=v1+(v2-v1)*RNDS[id].y;
 
-                    Ray shadow_ray=cons_Ray(hit.P+hit.N*0.001f, normalize(p-(hit.P+hit.N*0.001f)));
-                    Hit shadow_hit=first_intersect(tris, tris_size, shadow_ray);
+                    if(dot(rays[id].D,hit.N)<0){
+                        Ray shadow_ray=cons_Ray(hit.P+hit.N*0.001f, normalize(p-(hit.P+hit.N*0.001f)));
+                        Hit shadow_hit=first_intersect(tris, tris_size, shadow_ray);
 
-                    if(shadow_hit.t<length(p-shadow_ray.P)*0.99f){
-                        colors[id]=color;
-                    }else if(shadow_hit.mat.type==3){
-                        float cos_theta=0.0f;
-                        float cos_delta=0.0f;
+                        if(shadow_hit.t<length(p-shadow_ray.P)*0.99){
+                            colors[id]=(colors[id]*current_iteration + color)/(current_iteration+1);
+                        }else if(shadow_hit.mat.type==3){
+                            float cos_theta=0.0f;
+                            float cos_delta=0.0f;
 
-                        cos_theta=dot(shadow_ray.D, hit.N);
-                        color=shadow_hit.mat.emission*hit.mat.kd*fmax(0.0f, cos_theta);
+                            cos_theta=dot(shadow_ray.D, hit.N);
+                            color=shadow_hit.mat.emission/25.0f*hit.mat.kd*fmax(0.0f, cos_theta);
 
-                        float3 halfway=normalize(camera_get_view_dir(hit, cam) + shadow_ray.D);
-                        cos_delta=dot(hit.N, halfway);
-                        color=color + shadow_hit.mat.emission*hit.mat.ks*pow(fmax(0.0f, cos_delta), hit.mat.shininess);
+                            float3 halfway=normalize(camera_get_view_dir(hit, cam) + shadow_ray.D);
+                            cos_delta=dot(hit.N, halfway);
+                            color=color + shadow_hit.mat.emission/25.0f*hit.mat.ks*pow(fmax(0.0f, cos_delta), hit.mat.shininess);
 
-                        //colors[id]=(colors[id]*current_iteration + color)/(current_iteration+1);
-                        if(dot(rays[id].D,hit.N)<0){
                             colors[id]=(colors[id]*current_iteration + color)/(current_iteration+1);
                         }
                     }
