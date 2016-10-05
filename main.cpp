@@ -11,8 +11,8 @@
 #include <GL/glut.h>
 #include <CL/cl.hpp>
 
-const int screen_width=300;
-const int screen_height=300;
+const int screen_width=600;
+const int screen_height=400;
 const int max_iterations=15;
 int iterations=1;
 int current_iteration=0;
@@ -314,12 +314,12 @@ public:
         queue.enqueueNDRangeKernel(kernel_gen_ray,cl::NullRange,cl::NDRange(rays_size),cl::NullRange);
     }
     void trace_rays(){
-        int size=rays_size*(iterations-1);
+        int size=rays_size*(max_iterations-1);
         for(int i=0;i<size;++i){
             RNDS[i].s[0]=distribution(generator);
             RNDS[i].s[1]=distribution(generator);
         }
-        queue.enqueueWriteBuffer(buffer_rnds,CL_TRUE,0,sizeof(cl_float2)*rays_size*(iterations-1),&RNDS[0]);
+        queue.enqueueWriteBuffer(buffer_rnds,CL_TRUE,0,sizeof(cl_float2)*rays_size*(max_iterations-1),&RNDS[0]);
 
         //run the kernel
         cl::Kernel kernel_trace_ray=cl::Kernel(program,"trace_ray");
@@ -375,9 +375,9 @@ void onInitialization( ) {
     Material mat;
     
     //lámpa
-    mat=cons_Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){50.0f, 50.0f, 50.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){0}, (cl_int){3});
-    scene.add_Triangle(cons_Triangle((cl_float3){300.0f, 999.0f, 700.0f}, (cl_float3){300.0f, 999.0f, 300.0f}, (cl_float3){700.0f, 999.0f, 700.0f}, mat));
-    scene.add_Triangle(cons_Triangle((cl_float3){700.0f, 999.0f, 700.0f}, (cl_float3){300.0f, 999.0f, 300.0f}, (cl_float3){700.0f, 999.0f, 300.0f}, mat));
+    mat=cons_Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){2.0f, 2.0f, 2.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){0}, (cl_int){3});
+    scene.add_Triangle(cons_Triangle((cl_float3){300.0f, 999.9f, 700.0f}, (cl_float3){300.0f, 999.9f, 300.0f}, (cl_float3){700.0f, 999.9f, 700.0f}, mat));
+    scene.add_Triangle(cons_Triangle((cl_float3){700.0f, 999.9f, 700.0f}, (cl_float3){300.0f, 999.9f, 300.0f}, (cl_float3){700.0f, 999.9f, 300.0f}, mat));
     
     //elől
     mat=cons_Material((cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){100}, (cl_int){0});
@@ -413,10 +413,10 @@ void onInitialization( ) {
 //    //mat=cons_Material((cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){10}, (cl_int){0});
 //    scene.add_Triangle(cons_Triangle((cl_float3){500.0f, 500.0f, 500.0f}, (cl_float3){250.0f, 0.0f, 750.0f}, (cl_float3){750.0f, 0.0f, 750.0f}, mat));
     
-    //mat=cons_Material((cl_float3){0.0f, 0.3f, 0.3f}, (cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){10}, (cl_int){0});
-//    mat=cons_Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){10.0f, 10.0f, 10.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){0}, (cl_int){3});
-//    scene.add_Triangle(cons_Triangle((cl_float3){300.0f, 300.0f, 300.0f}, (cl_float3){300.0f, 700.0f, 700.0f}, (cl_float3){700.0f, 300.0f, 300.0f}, mat));
-//    scene.add_Triangle(cons_Triangle((cl_float3){700.0f, 300.0f, 300.0f}, (cl_float3){300.0f, 700.0f, 700.0f}, (cl_float3){700.0f, 700.0f, 700.0f}, mat));
+    mat=cons_Material((cl_float3){0.3f, 0.0f, 0.0f}, (cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){50}, (cl_int){0});
+    //mat=cons_Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){10.0f, 10.0f, 10.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){0}, (cl_int){3});
+    scene.add_Triangle(cons_Triangle((cl_float3){300.0f, 200.0f, 300.0f}, (cl_float3){300.0f, 500.0f, 700.0f}, (cl_float3){700.0f, 200.0f, 300.0f}, mat));
+    scene.add_Triangle(cons_Triangle((cl_float3){700.0f, 200.0f, 300.0f}, (cl_float3){300.0f, 500.0f, 700.0f}, (cl_float3){700.0f, 500.0f, 700.0f}, mat));
     
     std::thread t1(task1, "Hello");
     t1.detach();

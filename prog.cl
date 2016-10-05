@@ -142,6 +142,36 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
             if(hit.t>0){
                 if(hit.mat.type==0){            //diffuse
                     colors[id]=hit.mat.kd;
+                    /*Ray old_ray=rays[id];
+
+                    float3 p1=(float3)(300.0f, 999.9f, 300.0f);
+                    float3 p2=(float3)(700.0f, 999.9f, 300.0f);
+                    float3 p3=(float3)(300.0f, 999.9f, 700.0f);
+                    float3 p4=(float3)(700.0f, 999.9f, 700.0f);
+
+                    float3 v1=p1+(p2-p1)*RNDS[id].x;
+                    float3 v2=p3+(p4-p3)*RNDS[id].x;
+
+                    float3 p=v1+(v2-v1)*RNDS[id].y;
+
+                    Ray shadow_ray=cons_Ray(hit.P+hit.N*0.001f, normalize(p-(hit.P+hit.N*0.001f)));
+                    Hit shadow_hit=first_intersect(tris, tris_size, shadow_ray);
+
+                    if(shadow_hit.t<length(p-shadow_ray.P)*0.99f){
+                        colors[id]=color;
+                    }else if(shadow_hit.mat.type==3 && dot(shadow_ray.D,shadow_hit.N)<0){
+                        float cos_theta=0.0f;
+                        float cos_delta=0.0f;
+
+                        cos_theta=dot(shadow_ray.D, hit.N);
+                        color=color + shadow_hit.mat.emission*hit.mat.kd*fmax(0.0f, cos_theta);
+
+                        float3 halfway=normalize(camera_get_view_dir(hit, cam) + shadow_ray.D);
+                        cos_delta=dot(hit.N, halfway);
+                        color=color + shadow_hit.mat.emission*hit.mat.ks*pow(fmax(0.0f, cos_delta), hit.mat.shininess);
+
+                        colors[id]=(colors[id]*current_iteration + color)/(current_iteration+1);
+                    }*/
                 }else if(hit.mat.type==1){      //specular
 
                 }else if(hit.mat.type==2){      //refractive
