@@ -43,6 +43,9 @@ Ray camera_get_ray(int id, Camera cam){
     
     return cons_Ray(cam.eye, d);
 }
+float3 camera_get_view_dir(Hit hit, Camera cam){
+    return normalize((cam.eye-hit.P));
+}
 
 Hit triangle_intersect(Triangle tri, Ray ray){
     float3 P=ray.P;
@@ -103,9 +106,12 @@ void ortho_normal_system(const float3* V1, float3* V2, float3* V3){
     (*V3)=v3;
 }
 
-Ray new_ray_diffuse(Hit hit, float2 rnds){
+Ray new_ray_diffuse(Hit hit, float2 rnds, Ray old_ray){
     float3 X,Y,Z;
     Y=hit.N;
+    if(dot(old_ray.D,hit.N)>0){
+        Y=-Y;
+    }
     ortho_normal_system(&Y,&Z,&X);
     float rnd1,rnd2,r,theta,x,y,z;
     rnd1=rnds.x;
@@ -116,46 +122,174 @@ Ray new_ray_diffuse(Hit hit, float2 rnds){
     y=r*sin(theta);
     z=sqrt(fmax(0.0f, 1-rnd1));
     float3 new_d = normalize(X*x+Y*z+Z*y);
-    return cons_Ray(hit.P,new_d);
+    return cons_Ray(hit.P+Y*0.001f,new_d);
 }
 
-void kernel trace_ray(global const Triangle* tris, const int tris_size, global Ray* rays, global const float2* RNDS, global float3* colors){
-    int id=get_global_id(0);
-    //printf("id=%06d\n\r", id);
+float3 light_point(Hit hit, float2 rnds){
+    float3 p1=(float3)(300.0f, 999.9f, 300.0f);
+    float3 p2=(float3)(700.0f, 999.9f, 300.0f);
+    float3 p3=(float3)(300.0f, 999.9f, 700.0f);
+    float3 p4=(float3)(700.0f, 999.9f, 700.0f);
 
-    Hit hit=first_intersect(tris, tris_size, rays[id]);
+    float3 v1=p1+(p2-p1)*rnds.x;
+    float3 v2=p3+(p4-p3)*rnds.x;
 
-    //printf("hits[%03d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
+    return v1+(v2-v1)*rnds.y;
+}
 
-    if(hit.t>0){
-        if(hit.mat.type==0){            //diffuse
-            Ray old_ray=rays[id];
-            Ray new_ray=new_ray_diffuse(hit, RNDS[id]);
-            rays[id]=new_ray;
-            colors[id]=hit.mat.kd;
-        }else if(hit.mat.type==1){      //specular
-            
-        }else if(hit.mat.type==2){      //refractive
-            
-        }else{                          //emitter
-            colors[id]=hit.mat.emission;
-        }
-    }else{
-        colors[id]=(float3)(0.0f, 0.0f, 0.0f);
+float2 rand(float2 seed)
+{
+    int s=(int)((seed.x*2.0f-1.0f)*2147483647.0f);
+    int const a = 16807; //ie 7**5
+    int const m = 2147483647; //ie 2**31-1
+    s = ((long)(s * a))%m;
+    seed.x=(s/2147483647.0f+1.0f) / 2.0f;
+
+    s=(int)((seed.y*2.0f-1.0f)*2147483647.0f);
+    int const a2 = 16807; //ie 7**5
+    int const m2 = 2147483647; //ie 2**31-1
+    s = ((long)(s * a2))%m2;
+    seed.y=(s/2147483647.0f+1.0f) / 2.0f;
+
+    return seed;
+}
+
+void kernel trace_ray(global const Triangle* tris, const int tris_size, global Ray* rays, global float2* RNDS, const int iterations, const int current_iteration, const Camera cam, global float3* colors){
+    int id=get_global_id(1)*get_global_size(0) + get_global_id(0);
+    float3 factor_C=(float3)(0.0f, 0.0f, 0.0f);
+    float3 factor=(float3)(1.0f, 1.0f, 1.0f);
+    float3 color=(float3)(0.0f, 0.0f, 0.0f);
+    
+    if(current_iteration==0){
+        colors[id]=color;
     }
 
-    //if(id>180000 && id<180004){
-    //    printf("colors[%06d]: [%06.2f %06.2f %06.2f]\n\r", id, colors[id].x, colors[id].y, colors[id].z);
-    //    printf("hits[%06d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
-    //}
-    //printf("colors[%06d]: [%06.2f %06.2f %06.2f]\t", id, colors[id].x, colors[id].y, colors[id].z);
-    //printf("hits[%06d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", id, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
+/*
+    Hit hit=first_intersect(tris, tris_size, rays[id]);
+    if(hit.t>0){
+        colors[id]=hit.mat.kd;
+    }
+*/
 
-    //printf("old P=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n\r", old_ray.P.x, old_ray.P.y, old_ray.P.z, old_ray.D.x, old_ray.D.y, old_ray.D.z);
-    //printf("new P=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n\r", new_ray.P.x, new_ray.P.y, new_ray.P.z, new_ray.D.x, new_ray.D.y, new_ray.D.z);
+    for(int current=0; current<iterations; ++current){
+    RNDS[id]=rand(RNDS[id]);
+        Hit hit=first_intersect(tris, tris_size, rays[id]);
 
-    //printf("id=%02d \t%f %d\n\r", id, hit.mat.n, hit.mat.type);
-    //printf("rays[%03d]=\tP=[%06.2f %06.2f %06.2f] \tD=[%06.2f %06.2f %06.2f]\n\r", id, rays[id].P.x, rays[id].P.y, rays[id].P.z, rays[id].D.x, rays[id].D.y, rays[id].D.z);
+        if(iterations==1){                      //only kd color
+            if(hit.t>0){
+                if(hit.mat.type==0){            //diffuse
+                    if(dot(rays[id].D,hit.N)<0){
+                        float3 light_p=light_point(hit,RNDS[id]);
+                        Ray shadow_ray=cons_Ray(hit.P+hit.N*0.001f, normalize(light_p-(hit.P+hit.N*0.001f)));
+                        Hit shadow_hit=first_intersect(tris, tris_size, shadow_ray);
+
+                        if(shadow_hit.t<length(light_p-shadow_ray.P)*0.99){
+                            colors[id]=(colors[id]*current_iteration + color)/(current_iteration+1);
+                        }else if(shadow_hit.mat.type==3){
+                            float cos_theta=0.0f;
+                            float cos_delta=0.0f;
+
+                            cos_theta=dot(shadow_ray.D, hit.N);
+                            color=shadow_hit.mat.emission*hit.mat.kd*fmax(0.0f, cos_theta);
+
+                            float3 halfway=normalize(camera_get_view_dir(hit, cam) + shadow_ray.D);
+                            cos_delta=dot(hit.N, halfway);
+                            color=color + shadow_hit.mat.emission*hit.mat.ks*pow(fmax(0.0f, cos_delta), hit.mat.shininess);
+
+                            colors[id]=(colors[id]*current_iteration + color)/(current_iteration+1);
+                        }
+                    }
+                }else if(hit.mat.type==1){      //specular
+
+                }else if(hit.mat.type==2){      //refractive
+
+                }else{                          //emitter
+                    colors[id]=hit.mat.emission;
+                }
+            }else{
+                colors[id]=(float3)(0.0f, 0.0f, 0.0f);
+            }
+        }
+        else if(current<iterations-1){
+            if(hit.t>0){
+                if(hit.mat.type==0){            //diffuse
+                    if(dot(rays[id].D,hit.N)<0){
+/*
+                        float3 light_p=light_point(hit,RNDS[id]);
+                        Ray shadow_ray=cons_Ray(hit.P+hit.N*0.001f, normalize(light_p-(hit.P+hit.N*0.001f)));
+                        Hit shadow_hit=first_intersect(tris, tris_size, shadow_ray);
+                        if(shadow_hit.t<length(light_p-shadow_ray.P)*0.99){
+                            factor_C=factor_C + color;
+                        }else if(shadow_hit.mat.type==3){
+                            float cos_theta=0.0f;
+                            float cos_delta=0.0f;
+
+                            cos_theta=dot(shadow_ray.D, hit.N);
+                            factor_C=factor_C + shadow_hit.mat.emission*hit.mat.kd*fmax(0.0f, cos_theta);
+
+                            float3 halfway=normalize(camera_get_view_dir(hit, cam) + shadow_ray.D);
+                            cos_delta=dot(hit.N, halfway);
+                            factor_C=factor_C + shadow_hit.mat.emission*hit.mat.ks*pow(fmax(0.0f, cos_delta), hit.mat.shininess);
+                        }
+*/
+                        Ray old_ray=rays[id];
+                        Ray new_ray=new_ray_diffuse(hit, RNDS[id+current*get_global_size(0)*get_global_size(1)], old_ray);
+                        rays[id]=new_ray;
+
+                        float cos_theta=0.0f;
+                        float cos_delta=0.0f;
+
+                        cos_theta=dot(new_ray.D, hit.N);
+                        float3 factor_A=hit.mat.kd*fmax(0.0f, cos_theta);
+
+                        float3 halfway=normalize(camera_get_view_dir(hit, cam) + new_ray.D);
+                        cos_delta=dot(hit.N, halfway);
+                        float3 factor_B=hit.mat.ks*pow(fmax(0.0f, cos_delta), hit.mat.shininess);
+
+                        factor=factor*(factor_A + factor_B);
+                    }
+                }else if(hit.mat.type==1){      //specular
+
+                }else if(hit.mat.type==2){      //refractive
+
+                }else{                          //emitter
+                    if(dot(rays[id].D,hit.N)<0){
+                        color=hit.mat.emission*20;
+                    }
+                }
+            }else{
+                rays[id]=rays[id];
+            }
+        }else{
+            if(hit.t>0){
+                if(hit.mat.type==0){            //diffuse
+                    if(dot(rays[id].D,hit.N)<0){
+                        float3 c=(float3)(color.x*factor.x, color.y*factor.y, color.z*factor.z);
+                        c=c+factor_C;
+                        //c=c/2.0f;
+                        colors[id]=(colors[id]*current_iteration + c)/(current_iteration+1);
+                    }
+                }else if(hit.mat.type==1){      //specular
+
+                }else if(hit.mat.type==2){      //refractive
+
+                }else{                          //emitter
+                    if(dot(rays[id].D,hit.N)<0){
+                        color=hit.mat.emission*20;
+                        float3 c=(float3)(color.x*factor.x, color.y*factor.y, color.z*factor.z);
+                        c=c+factor_C;
+                        //c=c/2.0f;
+                        colors[id]=(colors[id]*current_iteration + c)/(current_iteration+1);
+                    }
+                }
+            }else{
+                if(dot(rays[id].D,hit.N)<0){
+                    colors[id]=(colors[id]*current_iteration + (float3)(0.0f, 0.0f, 0.0f))/(current_iteration+1);
+                }
+            }
+        }
+    }
+
 }
 
 void kernel gen_ray(global Ray* rays, const Camera camera){
