@@ -41,8 +41,8 @@ Hit init_Hit(){
 }
 
 float3 Fresnel(Hit hit, Ray old_ray){
-    float cosa=fmax(0.0f, dot(hit.N, old_ray.D));
-    return hit.mat.F0 + (1-hit.mat.F0)*pow(1-cosa, 5);
+    float cosa=fabs(dot(hit.N, old_ray.D));
+    return hit.mat.F0 + ((float3)(1.0f, 1.0f, 1.0f)-hit.mat.F0)*pow(1-cosa, 5);
 }
 
 typedef struct{
@@ -168,6 +168,7 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
     int id=get_global_id(1)*get_global_size(0) + get_global_id(0);
     float3 factor_A=(float3)(1.0f, 1.0f, 1.0f);
     float3 factor_B=(float3)(1.0f, 1.0f, 1.0f);
+    float3 factor_F=(float3)(1.0f, 1.0f, 1.0f);
     float3 color=(float3)(0.0f, 0.0f, 0.0f);
     
     if(current_sample==0){
@@ -192,12 +193,12 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
 
                     float cos_theta=dot(shadow_ray.D, hit.N);
                     float intensity_diffuse=fmax(0.0f, cos_theta);
-                    color=color + shadow_hit.mat.emission*hit.mat.kd*intensity_diffuse*factor_A;
+                    color=color + shadow_hit.mat.emission*hit.mat.kd*intensity_diffuse*factor_A*factor_F;
 
                     float3 halfway=normalize(camera_get_view_dir(hit, cam) + shadow_ray.D);
                     float cos_delta=dot(hit.N, halfway);
                     float intensity_specular=fmax(0.0f, cos_delta);
-                    color=color + shadow_hit.mat.emission*hit.mat.ks*pow(intensity_specular, hit.mat.shininess)*factor_B;
+                    color=color + shadow_hit.mat.emission*hit.mat.ks*pow(intensity_specular, hit.mat.shininess)*factor_B*factor_F;
                 }
 
                 Ray old_ray=rays[id];
@@ -210,18 +211,22 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
 
                 float cos_theta=dot(new_ray.D, hit.N);
                 float intensity_diffuse=fmax(0.0f, cos_theta);
-                factor_A=factor_A*(hit.mat.kd*intensity_diffuse)*(5);
+                //factor_A=factor_A*(hit.mat.kd*intensity_diffuse)*(5);
+                factor_A=factor_A*(hit.mat.kd*intensity_diffuse)*(5)*factor_F;
 
                 float3 halfway=normalize(camera_get_view_dir(hit, cam) + new_ray.D);
                 float cos_delta=dot(hit.N, halfway);
                 float intensity_specular=fmax(0.0f, cos_delta);
-                factor_B=factor_B*(hit.mat.ks*pow(intensity_specular, hit.mat.shininess))*(5);
+                //factor_B=factor_B*(hit.mat.ks*pow(intensity_specular, hit.mat.shininess))*(5);
+                factor_B=factor_B*(hit.mat.ks*pow(intensity_specular, hit.mat.shininess))*(5)*factor_F;
             }
             if(hit.mat.type==1){
                 Ray old_ray=rays[id];
                 rays[id]=new_ray_specular(hit, old_ray);
-                factor_A=factor_A*Fresnel(hit, old_ray);
-                factor_B=factor_B*Fresnel(hit, old_ray);
+                //float3 F=Fresnel(hit, old_ray);
+                factor_F=factor_F*Fresnel(hit, old_ray);
+                //factor_A=factor_A*F;
+                //factor_B=factor_B*F;
             }
             if(hit.mat.type==3){
                 Ray old_ray=rays[id];
