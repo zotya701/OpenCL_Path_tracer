@@ -154,25 +154,18 @@ float2 rand(float2 seed)
     return seed;
 }
 
-void kernel trace_ray(global const Triangle* tris, const int tris_size, global Ray* rays, global float2* RNDS, const int iterations, const int current_iteration, const Camera cam, global float3* colors){
+void kernel trace_ray(global const Triangle* tris, const int tris_size, global Ray* rays, global float2* RNDS, const int iterations, const int current_sample, const Camera cam, global float3* colors){
     int id=get_global_id(1)*get_global_size(0) + get_global_id(0);
     float3 factor_C=(float3)(0.0f, 0.0f, 0.0f);
     float3 factor=(float3)(1.0f, 1.0f, 1.0f);
     float3 color=(float3)(0.0f, 0.0f, 0.0f);
     
-    if(current_iteration==0){
+    if(current_sample==0){
         colors[id]=color;
     }
 
-/*
-    Hit hit=first_intersect(tris, tris_size, rays[id]);
-    if(hit.t>0){
-        colors[id]=hit.mat.kd;
-    }
-*/
-
     for(int current=0; current<iterations; ++current){
-    RNDS[id]=rand(RNDS[id]);
+        RNDS[id]=rand(RNDS[id]);
         Hit hit=first_intersect(tris, tris_size, rays[id]);
 
         if(iterations==1){                      //only kd color
@@ -184,7 +177,7 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
                         Hit shadow_hit=first_intersect(tris, tris_size, shadow_ray);
 
                         if(shadow_hit.t<length(light_p-shadow_ray.P)*0.99){
-                            colors[id]=(colors[id]*current_iteration + color)/(current_iteration+1);
+                            colors[id]=(colors[id]*current_sample + color)/(current_sample+1);
                         }else if(shadow_hit.mat.type==3){
                             float cos_theta=0.0f;
                             float cos_delta=0.0f;
@@ -196,7 +189,7 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
                             cos_delta=dot(hit.N, halfway);
                             color=color + shadow_hit.mat.emission*hit.mat.ks*pow(fmax(0.0f, cos_delta), hit.mat.shininess);
 
-                            colors[id]=(colors[id]*current_iteration + color)/(current_iteration+1);
+                            colors[id]=(colors[id]*current_sample + color)/(current_sample+1);
                         }
                     }
                 }else if(hit.mat.type==1){      //specular
@@ -267,7 +260,7 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
                         float3 c=(float3)(color.x*factor.x, color.y*factor.y, color.z*factor.z);
                         c=c+factor_C;
                         //c=c/2.0f;
-                        colors[id]=(colors[id]*current_iteration + c)/(current_iteration+1);
+                        colors[id]=(colors[id]*current_sample + c)/(current_sample+1);
                     }
                 }else if(hit.mat.type==1){      //specular
 
@@ -279,12 +272,12 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
                         float3 c=(float3)(color.x*factor.x, color.y*factor.y, color.z*factor.z);
                         c=c+factor_C;
                         //c=c/2.0f;
-                        colors[id]=(colors[id]*current_iteration + c)/(current_iteration+1);
+                        colors[id]=(colors[id]*current_sample + c)/(current_sample+1);
                     }
                 }
             }else{
                 if(dot(rays[id].D,hit.N)<0){
-                    colors[id]=(colors[id]*current_iteration + (float3)(0.0f, 0.0f, 0.0f))/(current_iteration+1);
+                    colors[id]=(colors[id]*current_sample + (float3)(0.0f, 0.0f, 0.0f))/(current_sample+1);
                 }
             }
         }

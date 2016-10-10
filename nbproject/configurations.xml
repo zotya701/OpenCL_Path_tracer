@@ -42,7 +42,7 @@
           <incDir>
             <pElem>C:/Program Files (x86)/AMD APP SDK/3.0/include</pElem>
           </incDir>
-          <commandLine>-g --std=c++14</commandLine>
+          <commandLine>-g --std=c++14 -pipe</commandLine>
         </ccTool>
         <linkerTool>
           <linkerAddLib>
@@ -79,7 +79,7 @@
             <pElem>C:/Program Files (x86)/AMD APP SDK/3.0/include</pElem>
             <pElem>C:/MinGW64/freeglut/include</pElem>
           </incDir>
-          <commandLine>--std=c++14</commandLine>
+          <commandLine>--std=c++14 -pipe</commandLine>
         </ccTool>
         <fortranCompilerTool>
           <developmentMode>5</developmentMode>
