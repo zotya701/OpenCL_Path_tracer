@@ -152,6 +152,22 @@ Ray new_ray_specular(Hit hit, Ray old_ray){
     return cons_Ray(hit.P+hit.N*0.001f, new_d);
 }
 
+Ray new_ray_refractive(Hit hit, Ray old_ray, bool in){
+    if(in){
+        hit.mat.n=1.0f/hit.mat.n;
+    }
+    hit.mat.n=1.0f/hit.mat.n;
+    float cosa=-dot(old_ray.D, hit.N);
+    float disc=1.0f - (1.0f - cosa*cosa)*hit.mat.n*hit.mat.n;
+    float3 F=hit.mat.F0 + ((float3)(1.0f, 1.0f, 1.0f) - hit.mat.F0)*pow(1-cosa, 5);
+    float prob=(F.x+F.y+F.z)/3.0f;
+    if(disc>0){
+        return cons_Ray(hit.P - hit.N*0.001f, normalize(old_ray.D*hit.mat.n + hit.N*(cosa*hit.mat.n - sqrt(disc))));
+    }else{
+        return cons_Ray(hit.P + hit.N*0.001f, normalize(old_ray.D + hit.N*cosa*2.0f));
+    }
+}
+
 float3 light_point(Hit hit, float2 rnds){
     float3 p1=(float3)(300.0f, 999.9f, 300.0f);
     float3 p2=(float3)(700.0f, 999.9f, 300.0f);
@@ -168,13 +184,15 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
     int id=get_global_id(1)*get_global_size(0) + get_global_id(0);
     float3 factor_A=(float3)(1.0f, 1.0f, 1.0f);
     float3 factor_B=(float3)(1.0f, 1.0f, 1.0f);
-    float3 factor_F=(float3)(1.0f, 1.0f, 1.0f);
+    float3 factor_S=(float3)(1.0f, 1.0f, 1.0f);
+    float3 factor_R=(float3)(1.0f, 1.0f, 1.0f);
     float3 color=(float3)(0.0f, 0.0f, 0.0f);
     
     if(current_sample==0){
         colors[id]=color;
     }
 
+    bool in=false;
     for(int current=0; current<iterations; ++current){
         Hit hit=first_intersect(tris, tris_size, rays[id]);
 
@@ -193,12 +211,12 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
 
                     float cos_theta=dot(shadow_ray.D, hit.N);
                     float intensity_diffuse=fmax(0.0f, cos_theta);
-                    color=color + shadow_hit.mat.emission*hit.mat.kd*intensity_diffuse*factor_A*factor_F;
+                    color=color + shadow_hit.mat.emission*hit.mat.kd*intensity_diffuse*factor_A*factor_S*factor_R;
 
                     float3 halfway=normalize(camera_get_view_dir(hit, cam) + shadow_ray.D);
                     float cos_delta=dot(hit.N, halfway);
                     float intensity_specular=fmax(0.0f, cos_delta);
-                    color=color + shadow_hit.mat.emission*hit.mat.ks*pow(intensity_specular, hit.mat.shininess)*factor_B*factor_F;
+                    color=color + shadow_hit.mat.emission*hit.mat.ks*pow(intensity_specular, hit.mat.shininess)*factor_B*factor_S*factor_R;
                 }
 
                 Ray old_ray=rays[id];
@@ -212,28 +230,32 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
                 float cos_theta=dot(new_ray.D, hit.N);
                 float intensity_diffuse=fmax(0.0f, cos_theta);
                 //factor_A=factor_A*(hit.mat.kd*intensity_diffuse)*(5);
-                factor_A=factor_A*(hit.mat.kd*intensity_diffuse)*(5)*factor_F;
+                factor_A=factor_A*(hit.mat.kd*intensity_diffuse)*(5)*factor_S*factor_R;
 
                 float3 halfway=normalize(camera_get_view_dir(hit, cam) + new_ray.D);
                 float cos_delta=dot(hit.N, halfway);
                 float intensity_specular=fmax(0.0f, cos_delta);
                 //factor_B=factor_B*(hit.mat.ks*pow(intensity_specular, hit.mat.shininess))*(5);
-                factor_B=factor_B*(hit.mat.ks*pow(intensity_specular, hit.mat.shininess))*(5)*factor_F;
+                factor_B=factor_B*(hit.mat.ks*pow(intensity_specular, hit.mat.shininess))*(5)*factor_S*factor_R;
             }
             if(hit.mat.type==1){
                 Ray old_ray=rays[id];
                 rays[id]=new_ray_specular(hit, old_ray);
-                //float3 F=Fresnel(hit, old_ray);
-                factor_F=factor_F*Fresnel(hit, old_ray);
-                //factor_A=factor_A*F;
-                //factor_B=factor_B*F;
+                factor_S=factor_S*Fresnel(hit, old_ray);
+            }
+            if(hit.mat.type==2){
+                Ray old_ray=rays[id];
+                rays[id]=new_ray_refractive(hit, old_ray, in);
+                Ray new_ray=rays[id];
+                factor_R=factor_R*(1-Fresnel(hit, old_ray));
+                in=!in;
             }
             if(hit.mat.type==3){
                 Ray old_ray=rays[id];
                 rnds[id]=rand(rnds[id]);
                 Ray new_ray=new_ray_diffuse(hit, rnds[id], old_ray);
                 rays[id]=new_ray;
-                color=color + hit.mat.emission*(factor_A + factor_B);
+                color=color + hit.mat.emission*(factor_A + factor_B)*factor_S*factor_R;
             }
         }
     }
