@@ -1,3 +1,19 @@
+float2 rand(float2 seed)
+{
+    int s=(int)((seed.x*2.0f-1.0f)*2147483647.0f);
+    int const a = 16807; //ie 7**5
+    int const m = 2147483647; //ie 2**31-1
+    s = ((long)(s * a))%m;
+    seed.x=(s/2147483647.0f+1.0f) / 2.0f;
+
+    s=(int)((seed.y*2.0f-1.0f)*2147483647.0f);
+    int const a2 = 16807; //ie 7**5
+    int const m2 = 2147483647; //ie 2**31-1
+    s = ((long)(s * a2))%m2;
+    seed.y=(s/2147483647.0f+1.0f) / 2.0f;
+
+    return seed;
+}
 
 typedef struct{
     float3 kd,ks,emission,F0;
@@ -24,6 +40,11 @@ Hit init_Hit(){
     return cons_Hit(-1.0f, (float3)(0.0f, 0.0f, 0.0f), (float3)(1.0f, 0.0f, 0.0f));
 }
 
+float3 Fresnel(Hit hit, Ray old_ray){
+    float cosa=fabs(dot(hit.N, old_ray.D));
+    return hit.mat.F0 + ((float3)(1.0f, 1.0f, 1.0f)-hit.mat.F0)*pow(1-cosa, 5);
+}
+
 typedef struct{
     float3 r1,r2,r3,N;
     Material mat;
@@ -33,11 +54,12 @@ typedef struct{
     float3 eye, lookat, up, right;
     float XM, YM;
 } Camera;
-Ray camera_get_ray(int id, Camera cam){
+Ray camera_get_ray(int id, Camera cam, global float2* rnds){
+    rnds[id]=rand(rnds[id]);
     int X=cam.XM;
     int Y=cam.YM;
-    float x=id%X+0.5f;
-    float y=id/X+0.5f;
+    float x=id%X+rnds[id].x;
+    float y=id/X+rnds[id].y;
     float3 p=cam.lookat + cam.right*(2.0f*x/cam.XM-1) + cam.up*(2*y/cam.YM-1);
     float3 d=normalize(p-cam.eye);
     
@@ -109,9 +131,9 @@ void ortho_normal_system(const float3* V1, float3* V2, float3* V3){
 Ray new_ray_diffuse(Hit hit, float2 rnds, Ray old_ray){
     float3 X,Y,Z;
     Y=hit.N;
-    if(dot(old_ray.D,hit.N)>0){
-        Y=-Y;
-    }
+    //if(dot(old_ray.D,hit.N)>0){
+    //    Y=-Y;
+    //}
     ortho_normal_system(&Y,&Z,&X);
     float rnd1,rnd2,r,theta,x,y,z;
     rnd1=rnds.x;
@@ -120,9 +142,30 @@ Ray new_ray_diffuse(Hit hit, float2 rnds, Ray old_ray){
     theta=2*M_PI*rnd2;
     x=r*cos(theta);
     y=r*sin(theta);
-    z=sqrt(fmax(0.0f, 1-rnd1));
-    float3 new_d = normalize(X*x+Y*z+Z*y);
-    return cons_Ray(hit.P+Y*0.001f,new_d);
+    z=sqrt(1-rnd1);
+    float3 new_d=normalize(X*x+Y*z+Z*y);
+    return cons_Ray(hit.P+Y*0.001f, new_d);
+}
+
+Ray new_ray_specular(Hit hit, Ray old_ray){
+    float3 new_d=normalize(old_ray.D - hit.N*dot(hit.N, old_ray.D)*2.0f);
+    return cons_Ray(hit.P+hit.N*0.001f, new_d);
+}
+
+Ray new_ray_refractive(Hit hit, Ray old_ray, bool in){
+    if(in){
+        hit.mat.n=1.0f/hit.mat.n;
+    }
+    hit.mat.n=1.0f/hit.mat.n;
+    float cosa=-dot(old_ray.D, hit.N);
+    float disc=1.0f - (1.0f - cosa*cosa)*hit.mat.n*hit.mat.n;
+    float3 F=hit.mat.F0 + ((float3)(1.0f, 1.0f, 1.0f) - hit.mat.F0)*pow(1-cosa, 5);
+    float prob=(F.x+F.y+F.z)/3.0f;
+    if(disc>0){
+        return cons_Ray(hit.P - hit.N*0.001f, normalize(old_ray.D*hit.mat.n + hit.N*(cosa*hit.mat.n - sqrt(disc))));
+    }else{
+        return cons_Ray(hit.P + hit.N*0.001f, normalize(old_ray.D + hit.N*cosa*2.0f));
+    }
 }
 
 float3 light_point(Hit hit, float2 rnds){
@@ -137,162 +180,89 @@ float3 light_point(Hit hit, float2 rnds){
     return v1+(v2-v1)*rnds.y;
 }
 
-float2 rand(float2 seed)
-{
-    int s=(int)((seed.x*2.0f-1.0f)*2147483647.0f);
-    int const a = 16807; //ie 7**5
-    int const m = 2147483647; //ie 2**31-1
-    s = ((long)(s * a))%m;
-    seed.x=(s/2147483647.0f+1.0f) / 2.0f;
-
-    s=(int)((seed.y*2.0f-1.0f)*2147483647.0f);
-    int const a2 = 16807; //ie 7**5
-    int const m2 = 2147483647; //ie 2**31-1
-    s = ((long)(s * a2))%m2;
-    seed.y=(s/2147483647.0f+1.0f) / 2.0f;
-
-    return seed;
-}
-
-void kernel trace_ray(global const Triangle* tris, const int tris_size, global Ray* rays, global float2* RNDS, const int iterations, const int current_iteration, const Camera cam, global float3* colors){
+void kernel trace_ray(global const Triangle* tris, const int tris_size, global Ray* rays, global float2* rnds, const int iterations, const int current_sample, const Camera cam, global float3* colors){
     int id=get_global_id(1)*get_global_size(0) + get_global_id(0);
-    float3 factor_C=(float3)(0.0f, 0.0f, 0.0f);
-    float3 factor=(float3)(1.0f, 1.0f, 1.0f);
+    float3 factor_A=(float3)(1.0f, 1.0f, 1.0f);
+    float3 factor_B=(float3)(1.0f, 1.0f, 1.0f);
+    float3 factor_S=(float3)(1.0f, 1.0f, 1.0f);
+    float3 factor_R=(float3)(1.0f, 1.0f, 1.0f);
     float3 color=(float3)(0.0f, 0.0f, 0.0f);
     
-    if(current_iteration==0){
+    if(current_sample==0){
         colors[id]=color;
     }
 
-/*
-    Hit hit=first_intersect(tris, tris_size, rays[id]);
-    if(hit.t>0){
-        colors[id]=hit.mat.kd;
-    }
-*/
-
+    bool in=false;
     for(int current=0; current<iterations; ++current){
-    RNDS[id]=rand(RNDS[id]);
         Hit hit=first_intersect(tris, tris_size, rays[id]);
 
-        if(iterations==1){                      //only kd color
-            if(hit.t>0){
-                if(hit.mat.type==0){            //diffuse
-                    if(dot(rays[id].D,hit.N)<0){
-                        float3 light_p=light_point(hit,RNDS[id]);
-                        Ray shadow_ray=cons_Ray(hit.P+hit.N*0.001f, normalize(light_p-(hit.P+hit.N*0.001f)));
-                        Hit shadow_hit=first_intersect(tris, tris_size, shadow_ray);
-
-                        if(shadow_hit.t<length(light_p-shadow_ray.P)*0.99){
-                            colors[id]=(colors[id]*current_iteration + color)/(current_iteration+1);
-                        }else if(shadow_hit.mat.type==3){
-                            float cos_theta=0.0f;
-                            float cos_delta=0.0f;
-
-                            cos_theta=dot(shadow_ray.D, hit.N);
-                            color=shadow_hit.mat.emission*hit.mat.kd*fmax(0.0f, cos_theta);
-
-                            float3 halfway=normalize(camera_get_view_dir(hit, cam) + shadow_ray.D);
-                            cos_delta=dot(hit.N, halfway);
-                            color=color + shadow_hit.mat.emission*hit.mat.ks*pow(fmax(0.0f, cos_delta), hit.mat.shininess);
-
-                            colors[id]=(colors[id]*current_iteration + color)/(current_iteration+1);
-                        }
-                    }
-                }else if(hit.mat.type==1){      //specular
-
-                }else if(hit.mat.type==2){      //refractive
-
-                }else{                          //emitter
-                    colors[id]=hit.mat.emission;
-                }
-            }else{
-                colors[id]=(float3)(0.0f, 0.0f, 0.0f);
+        if(hit.t>0){
+            if(dot(rays[id].D,hit.N)>0){                                                                                                // to detect if we approach the triangle fromt he front or from behind
+                hit.N=-hit.N;
             }
-        }
-        else if(current<iterations-1){
-            if(hit.t>0){
-                if(hit.mat.type==0){            //diffuse
-                    if(dot(rays[id].D,hit.N)<0){
-/*
-                        float3 light_p=light_point(hit,RNDS[id]);
-                        Ray shadow_ray=cons_Ray(hit.P+hit.N*0.001f, normalize(light_p-(hit.P+hit.N*0.001f)));
-                        Hit shadow_hit=first_intersect(tris, tris_size, shadow_ray);
-                        if(shadow_hit.t<length(light_p-shadow_ray.P)*0.99){
-                            factor_C=factor_C + color;
-                        }else if(shadow_hit.mat.type==3){
-                            float cos_theta=0.0f;
-                            float cos_delta=0.0f;
+            if(hit.mat.type==0){
+                rnds[id]=rand(rnds[id]);
+                float3 light_p=light_point(hit,rnds[id]);                                                                                   // random point on light surface
+                Ray shadow_ray=cons_Ray(hit.P+hit.N*0.001f, normalize(light_p-(hit.P+hit.N*0.001f)));                                                 // shadow ray from hit point to the light
+                Hit shadow_hit=first_intersect(tris, tris_size, shadow_ray);                                                                // calculate the shadow ray's intersection point
+                if(shadow_hit.mat.type==3){                                                                                                 // if it was a light emitter
+                    float dist=length(light_p-shadow_ray.P)/500;
+                    float att=1.0f/(1.0f + 0.1f*dist + 0.01f*dist*dist);
 
-                            cos_theta=dot(shadow_ray.D, hit.N);
-                            factor_C=factor_C + shadow_hit.mat.emission*hit.mat.kd*fmax(0.0f, cos_theta);
+                    float cos_theta=dot(shadow_ray.D, hit.N);
+                    float intensity_diffuse=fmax(0.0f, cos_theta);
+                    color=color + shadow_hit.mat.emission*hit.mat.kd*intensity_diffuse*factor_A*factor_S*factor_R;
 
-                            float3 halfway=normalize(camera_get_view_dir(hit, cam) + shadow_ray.D);
-                            cos_delta=dot(hit.N, halfway);
-                            factor_C=factor_C + shadow_hit.mat.emission*hit.mat.ks*pow(fmax(0.0f, cos_delta), hit.mat.shininess);
-                        }
-*/
-                        Ray old_ray=rays[id];
-                        Ray new_ray=new_ray_diffuse(hit, RNDS[id+current*get_global_size(0)*get_global_size(1)], old_ray);
-                        rays[id]=new_ray;
-
-                        float cos_theta=0.0f;
-                        float cos_delta=0.0f;
-
-                        cos_theta=dot(new_ray.D, hit.N);
-                        float3 factor_A=hit.mat.kd*fmax(0.0f, cos_theta);
-
-                        float3 halfway=normalize(camera_get_view_dir(hit, cam) + new_ray.D);
-                        cos_delta=dot(hit.N, halfway);
-                        float3 factor_B=hit.mat.ks*pow(fmax(0.0f, cos_delta), hit.mat.shininess);
-
-                        factor=factor*(factor_A + factor_B);
-                    }
-                }else if(hit.mat.type==1){      //specular
-
-                }else if(hit.mat.type==2){      //refractive
-
-                }else{                          //emitter
-                    if(dot(rays[id].D,hit.N)<0){
-                        color=hit.mat.emission*20;
-                    }
+                    float3 halfway=normalize(camera_get_view_dir(hit, cam) + shadow_ray.D);
+                    float cos_delta=dot(hit.N, halfway);
+                    float intensity_specular=fmax(0.0f, cos_delta);
+                    color=color + shadow_hit.mat.emission*hit.mat.ks*pow(intensity_specular, hit.mat.shininess)*factor_B*factor_S*factor_R;
                 }
-            }else{
-                rays[id]=rays[id];
+
+                Ray old_ray=rays[id];
+                rnds[id]=rand(rnds[id]);
+                Ray new_ray=new_ray_diffuse(hit, rnds[id], old_ray);
+                rays[id]=new_ray;
+
+                float dist=length(light_p-shadow_ray.P)/500;
+                float att=1.0f/(1.0f + 0.1f*dist + 0.01f*dist*dist);
+
+                float cos_theta=dot(new_ray.D, hit.N);
+                float intensity_diffuse=fmax(0.0f, cos_theta);
+                //factor_A=factor_A*(hit.mat.kd*intensity_diffuse)*(5);
+                factor_A=factor_A*(hit.mat.kd*intensity_diffuse)*(5)*factor_S*factor_R;
+
+                float3 halfway=normalize(camera_get_view_dir(hit, cam) + new_ray.D);
+                float cos_delta=dot(hit.N, halfway);
+                float intensity_specular=fmax(0.0f, cos_delta);
+                //factor_B=factor_B*(hit.mat.ks*pow(intensity_specular, hit.mat.shininess))*(5);
+                factor_B=factor_B*(hit.mat.ks*pow(intensity_specular, hit.mat.shininess))*(5)*factor_S*factor_R;
             }
-        }else{
-            if(hit.t>0){
-                if(hit.mat.type==0){            //diffuse
-                    if(dot(rays[id].D,hit.N)<0){
-                        float3 c=(float3)(color.x*factor.x, color.y*factor.y, color.z*factor.z);
-                        c=c+factor_C;
-                        //c=c/2.0f;
-                        colors[id]=(colors[id]*current_iteration + c)/(current_iteration+1);
-                    }
-                }else if(hit.mat.type==1){      //specular
-
-                }else if(hit.mat.type==2){      //refractive
-
-                }else{                          //emitter
-                    if(dot(rays[id].D,hit.N)<0){
-                        color=hit.mat.emission*20;
-                        float3 c=(float3)(color.x*factor.x, color.y*factor.y, color.z*factor.z);
-                        c=c+factor_C;
-                        //c=c/2.0f;
-                        colors[id]=(colors[id]*current_iteration + c)/(current_iteration+1);
-                    }
-                }
-            }else{
-                if(dot(rays[id].D,hit.N)<0){
-                    colors[id]=(colors[id]*current_iteration + (float3)(0.0f, 0.0f, 0.0f))/(current_iteration+1);
-                }
+            if(hit.mat.type==1){
+                Ray old_ray=rays[id];
+                rays[id]=new_ray_specular(hit, old_ray);
+                factor_S=factor_S*Fresnel(hit, old_ray);
+            }
+            if(hit.mat.type==2){
+                Ray old_ray=rays[id];
+                rays[id]=new_ray_refractive(hit, old_ray, in);
+                Ray new_ray=rays[id];
+                factor_R=factor_R*(1-Fresnel(hit, old_ray));
+                in=!in;
+            }
+            if(hit.mat.type==3){
+                Ray old_ray=rays[id];
+                rnds[id]=rand(rnds[id]);
+                Ray new_ray=new_ray_diffuse(hit, rnds[id], old_ray);
+                rays[id]=new_ray;
+                color=color + hit.mat.emission*(factor_A + factor_B)*factor_S*factor_R;
             }
         }
     }
-
+    colors[id]=(colors[id]*current_sample + color)/(current_sample+1);
 }
 
-void kernel gen_ray(global Ray* rays, const Camera camera){
+void kernel gen_ray(global Ray* rays, const Camera camera, global float2* rnds){
     int id=get_global_id(0);
-    rays[id]=camera_get_ray(id, camera);
+    rays[id]=camera_get_ray(id, camera, rnds);
 }
