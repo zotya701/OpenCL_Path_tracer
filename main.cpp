@@ -14,8 +14,8 @@
 
 #define clear_line() printf("\r                                                                                                                             \r");
 
-const int screen_width=192*2;
-const int screen_height=108*2;
+const int screen_width=192*3;
+const int screen_height=108*3;
 const int max_iterations=15;
 int iterations=1;
 int current_sample=0;

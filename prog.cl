@@ -198,7 +198,6 @@ void kernel trace_ray(write_only image2d_t tex, global const Triangle* tris, con
     if(current_sample==0){
         colors[id]=color;
     }
-
     
     bool in=false;
     for(int current=0; current<iterations; ++current){
@@ -209,23 +208,6 @@ void kernel trace_ray(write_only image2d_t tex, global const Triangle* tris, con
                 hit.N=-hit.N;
             }
             if(hit.mat.type==0){                                                                                    // diffuse
-                /*
-                for(int i=0;i<lights_size;++i){                                                                                                         // sample all lights
-                    rnds[id]=rand(rnds[id]);
-                    Ray shadow_ray=cons_Ray(hit.P+hit.N*0.001f, light_dir(hit, lights[i], rnds[id]));
-                    Hit shadow_hit=first_intersect(tris, tris_size, shadow_ray);
-                    if(shadow_hit.mat.type==3){                                                                                                         // detect if there aren't any obstacles between the object and the light
-                        float cos_theta=dot(shadow_ray.D, hit.N);
-                        float intensity_diffuse=fmax(0.0f, cos_theta);
-                        color=color + shadow_hit.mat.emission*hit.mat.kd*intensity_diffuse*factor_A*factor_S*factor_R/50.0f;                                  // diffuse color
-
-                        float3 halfway=normalize(camera_view_dir(hit, cam) + shadow_ray.D);
-                        float cos_delta=dot(hit.N, halfway);
-                        float intensity_specular=fmax(0.0f, cos_delta);
-                        color=color + shadow_hit.mat.emission*hit.mat.ks*pow(intensity_specular, hit.mat.shininess)*factor_B*factor_S*factor_R/50.0f;         // specular color
-                    }
-                }
-                */
                 Ray old_ray=rays[id];
                 rnds[id]=rand(rnds[id]);
                 Ray new_ray=new_ray_diffuse(hit, rnds[id], old_ray);
