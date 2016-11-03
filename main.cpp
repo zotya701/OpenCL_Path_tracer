@@ -14,8 +14,8 @@
 
 #define clear_line() printf("\r                                                                                                                             \r");
 
-const int screen_width=400;
-const int screen_height=400;
+const int screen_width=192*2;
+const int screen_height=108*2;
 const int max_iterations=15;
 int iterations=1;
 int current_sample=0;
@@ -545,7 +545,11 @@ void onInitialization( ) {
     scene.add_Triangle(cons_Triangle((cl_float3){0.0f, 0.0f+asd, 500.0f}, (cl_float3){0.0f, 0.0f+asd, 600.0f}, (cl_float3){400.0f, 0.0f+asd, 600.0f}, mat));
     
     
-//    mat=cons_Material((cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){100}, (cl_int){0});
+    
+    //mat=cons_Material((cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){3.1f, 3.05f, 2.05f}, (cl_float3){3.3f, 3.3f, 2.9f}, (cl_float){0}, (cl_int){1});   //chromium
+    //mat=cons_Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){0}, (cl_int){2});     //üveg
+    //mat=cons_Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.17f, 0.35f, 1.5f}, (cl_float3){3.1f, 2.7f, 1.9f}, (cl_float){0}, (cl_int){1});     //arany
+    //mat=cons_Material((cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){100}, (cl_int){0});
 //    scene.add_Triangle(cons_Triangle((cl_float3){250.0f, 0.0f, 250.0f}, (cl_float3){500.0f, 500.0f, 500.0f}, (cl_float3){750.0f, 0.0f, 250.0f}, mat));
 //    //mat=cons_Material((cl_float3){0.0f, 1.0f, 0.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){10}, (cl_int){0});
 //    scene.add_Triangle(cons_Triangle((cl_float3){250.0f, 0.0f, 250.0f}, (cl_float3){250.0f, 0.0f, 750.0f}, (cl_float3){500.0f, 500.0f, 500.0f}, mat));
@@ -554,10 +558,14 @@ void onInitialization( ) {
 //    //mat=cons_Material((cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){10}, (cl_int){0});
 //    scene.add_Triangle(cons_Triangle((cl_float3){500.0f, 500.0f, 500.0f}, (cl_float3){250.0f, 0.0f, 750.0f}, (cl_float3){750.0f, 0.0f, 750.0f}, mat));
     
-//    mat=cons_Material((cl_float3){0.3f, 0.0f, 0.0f}, (cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){50}, (cl_int){0});
-//    //mat=cons_Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){10.0f, 10.0f, 10.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){0}, (cl_int){3});
-////    scene.add_Triangle(cons_Triangle((cl_float3){300.0f, 500.0f, -700.0f}, (cl_float3){300.0f, 200.0f, -300.0f}, (cl_float3){700.0f, 500.0f, -700.0f}, mat));
-////    scene.add_Triangle(cons_Triangle((cl_float3){700.0f, 500.0f, -700.0f}, (cl_float3){300.0f, 200.0f, -300.0f}, (cl_float3){700.0f, 200.0f, -300.0f}, mat));
+    
+    //mat=cons_Material((cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){3.1f, 3.05f, 2.05f}, (cl_float3){3.3f, 3.3f, 2.9f}, (cl_float){0}, (cl_int){1});   //chromium
+//    mat=cons_Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){0}, (cl_int){2});     //üveg
+    //mat=cons_Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.17f, 0.35f, 1.5f}, (cl_float3){3.1f, 2.7f, 1.9f}, (cl_float){0}, (cl_int){1});     //arany
+    //mat=cons_Material((cl_float3){0.3f, 0.0f, 0.0f}, (cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){50}, (cl_int){0});
+    //mat=cons_Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){10.0f, 10.0f, 10.0f}, (cl_float3){1.5f, 1.5f, 1.5f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){0}, (cl_int){3});
+//    scene.add_Triangle(cons_Triangle((cl_float3){300.0f, 500.0f, -700.0f}, (cl_float3){300.0f, 200.0f, -300.0f}, (cl_float3){700.0f, 500.0f, -700.0f}, mat));
+//    scene.add_Triangle(cons_Triangle((cl_float3){700.0f, 500.0f, -700.0f}, (cl_float3){300.0f, 200.0f, -300.0f}, (cl_float3){700.0f, 200.0f, -300.0f}, mat));
 //    scene.add_Triangle(cons_Triangle((cl_float3){300.0f, 500.0f, 700.0f}, (cl_float3){300.0f, 500.0f, 300.0f}, (cl_float3){700.0f, 500.0f, 300.0f}, mat));
 //    scene.add_Triangle(cons_Triangle((cl_float3){700.0f, 500.0f, 300.0f}, (cl_float3){300.0f, 500.0f, 700.0f}, (cl_float3){700.0f, 500.0f, 700.0f}, mat));
     
@@ -570,6 +578,7 @@ void onDisplay( ) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     float h=((screen_height+100.0f)/2.0f-100.0f)/((screen_height+100.0f)/2.0f);
+    h=1;
     glBindTexture(GL_TEXTURE_2D, 1);
     glBegin(GL_QUADS);
     glTexCoord2i(0, 1);
@@ -732,7 +741,7 @@ void onIdle( ) {
 
 int main(int argc, char **argv) {
     glutInit(&argc, argv); 				// GLUT inicializalasa
-    glutInitWindowSize(screen_width, screen_height+100);	// Alkalmazas ablak kezdeti merete 600x600 pixel 
+    glutInitWindowSize(screen_width, screen_height);	// Alkalmazas ablak kezdeti merete 600x600 pixel 
     glutInitWindowPosition(100, 100);			// Az elozo alkalmazas ablakhoz kepest hol tunik fel
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH);	// 8 bites R,G,B,A + dupla buffer + melyseg buffer
 

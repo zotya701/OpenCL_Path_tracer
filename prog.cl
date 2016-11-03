@@ -199,6 +199,7 @@ void kernel trace_ray(write_only image2d_t tex, global const Triangle* tris, con
         colors[id]=color;
     }
 
+    
     bool in=false;
     for(int current=0; current<iterations; ++current){
         Hit hit=first_intersect(tris, tris_size, rays[id]);
@@ -261,6 +262,7 @@ void kernel trace_ray(write_only image2d_t tex, global const Triangle* tris, con
             }
         }
     }
+    
 
     /*
     bool in=false;
@@ -310,7 +312,8 @@ void kernel trace_ray(write_only image2d_t tex, global const Triangle* tris, con
             }
             if(hit.mat.type==2){                                                                                    // refractive
                 Ray old_ray=rays[id];
-                rays[id]=new_ray_refractive(hit, old_ray, in);
+                rnds[id]=rand(rnds[id]);
+                rays[id]=new_ray_refractive(hit, old_ray, in, rnds[id].x);
                 Ray new_ray=rays[id];
                 factor_R=factor_R*(1-Fresnel(hit, old_ray));
                 in=!in;
