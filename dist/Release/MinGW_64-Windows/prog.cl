@@ -1,5 +1,34 @@
-float2 rand(float2 seed)
-{
+typedef struct{
+    float3 kd,ks,emission,F0;
+    float n, shininess, glossiness;
+    int type;
+} Material;
+
+typedef struct{
+    float3 P,D;
+} Ray;
+
+typedef struct{
+    float t;
+    float3 P,N;
+    Material mat;
+} Hit;
+
+typedef struct{
+    float3 r1,r2,r3,N;
+    Material mat;
+} Triangle;
+
+typedef struct{
+    float3 eye, lookat, up, right;
+    float XM, YM;
+} Camera;
+
+typedef struct{
+    float3 p1,p2,p3,p4;
+} Light;
+
+float2 rand(float2 seed){
     int s=(int)((seed.x*2.0f-1.0f)*2147483647.0f);
     int const a = 16807; //ie 7**5
     int const m = 2147483647; //ie 2**31-1
@@ -13,93 +42,6 @@ float2 rand(float2 seed)
     seed.y=(s/2147483647.0f+1.0f) / 2.0f;
 
     return seed;
-}
-
-typedef struct{
-    float3 kd,ks,emission,F0;
-    float n, shininess, glossiness;
-    int type;
-} Material;
-
-typedef struct{
-    float3 P,D;
-} Ray;
-Ray cons_Ray(float3 p, float3 d){
-    Ray ray; ray.P=p; ray.D=d; return ray;
-}
-
-typedef struct{
-    float t;
-    float3 P,N;
-    Material mat;
-} Hit;
-Hit cons_Hit(float t, float3 p, float3 n){
-    Hit hit; hit.t=t; hit.P=p; hit.N=n; return hit;
-}
-Hit init_Hit(){
-    return cons_Hit(-1.0f, (float3)(0.0f, 0.0f, 0.0f), (float3)(1.0f, 0.0f, 0.0f));
-}
-
-float3 Fresnel(Hit hit, Ray old_ray){
-    float cosa=fabs(dot(hit.N, old_ray.D));
-    return hit.mat.F0 + ((float3)(1.0f, 1.0f, 1.0f)-hit.mat.F0)*pow(1-cosa, 5);
-}
-
-typedef struct{
-    float3 r1,r2,r3,N;
-    Material mat;
-} Triangle;
-
-typedef struct{
-    float3 eye, lookat, up, right;
-    float XM, YM;
-} Camera;
-Ray camera_get_ray(int id, Camera cam, global float2* rnds){
-    rnds[id]=rand(rnds[id]);
-    int X=cam.XM;
-    int Y=cam.YM;
-    float x=id%X+rnds[id].x;
-    float y=id/X+rnds[id].y;
-    float3 p=cam.lookat + cam.right*(2.0f*x/cam.XM-1) + cam.up*(2*y/cam.YM-1);
-    float3 d=normalize(p-cam.eye);
-    
-    return cons_Ray(cam.eye, d);
-}
-float3 camera_get_view_dir(Hit hit, Camera cam){
-    return normalize((cam.eye-hit.P));
-}
-
-Hit triangle_intersect(Triangle tri, Ray ray){
-    float3 P=ray.P;
-    float3 V=ray.D;
-    float3 N=tri.N;
-    float t=dot((tri.r1-P),N)/dot(V,N);
-    if(t<0){
-        return init_Hit();
-    }
-    float3 p=P+V*t;
-    if( dot( cross((tri.r2-tri.r1),(p-tri.r1)) , N) >= 0){
-        if( dot( cross((tri.r3-tri.r2),(p-tri.r2)) , N)>=0){
-            if( dot( cross((tri.r1-tri.r3),(p-tri.r3)) , N)>=0){
-                Hit hit=cons_Hit(t,p,N);
-                hit.mat=tri.mat;
-                return hit;
-            }
-        }
-    }
-    return init_Hit();
-}
-
-Hit first_intersect(global const Triangle* tris, const int tris_size, const Ray ray){
-    Hit best_hit=init_Hit();
-    for(int i=0; i<tris_size; ++i){
-        Hit hit=triangle_intersect(tris[i], ray);
-        //printf("hits[%03d]=\tt=%06.2f \tP=[%06.2f %06.2f %06.2f] \tN=[%06.2f %06.2f %06.2f]\n\r", i, hit.t, hit.P.x, hit.P.y, hit.P.z, hit.N.x, hit.N.y, hit.N.z);
-        if(hit.t>0 && (best_hit.t<0 || hit.t<best_hit.t)){
-            best_hit=hit;
-        }
-    }
-    return best_hit;
 }
 
 void ortho_normal_system(const float3* V1, float3* V2, float3* V3){
@@ -128,12 +70,74 @@ void ortho_normal_system(const float3* V1, float3* V2, float3* V3){
     (*V3)=v3;
 }
 
+float3 Fresnel(Hit hit, Ray old_ray){
+    float cosa=fabs(dot(hit.N, old_ray.D));
+    return hit.mat.F0 + ((float3)(1.0f, 1.0f, 1.0f)-hit.mat.F0)*pow(1-cosa, 5);
+}
+
+Ray cons_Ray(float3 p, float3 d){
+    Ray ray; ray.P=p; ray.D=d; return ray;
+}
+
+Hit cons_Hit(float t, float3 p, float3 n){
+    Hit hit; hit.t=t; hit.P=p; hit.N=n; return hit;
+}
+
+Hit init_Hit(){
+    return cons_Hit(-1.0f, (float3)(0.0f, 0.0f, 0.0f), (float3)(0.0f, 0.0f, 0.0f));
+}
+
+Ray camera_get_ray(int id, Camera cam, global float2* rnds){
+    rnds[id]=rand(rnds[id]);
+    int X=cam.XM;
+    int Y=cam.YM;
+    float x=id%X+rnds[id].x;
+    float y=id/X+rnds[id].y;
+    float3 p=cam.lookat + cam.right*(2.0f*x/cam.XM-1) + cam.up*(2*y/cam.YM-1);
+    float3 d=normalize(p-cam.eye);
+    
+    return cons_Ray(cam.eye, d);
+}
+
+float3 camera_view_dir(Hit hit, Camera cam){
+    return normalize((cam.eye-hit.P));
+}
+
+Hit triangle_intersect(Triangle tri, Ray ray){
+    float3 P=ray.P;
+    float3 V=ray.D;
+    float3 N=tri.N;
+    float t=dot((tri.r1-P),N)/dot(V,N);
+    if(t<0){
+        return init_Hit();
+    }
+    float3 p=P+V*t;
+    if( dot( cross((tri.r2-tri.r1),(p-tri.r1)) , N) >= 0){
+        if( dot( cross((tri.r3-tri.r2),(p-tri.r2)) , N)>=0){
+            if( dot( cross((tri.r1-tri.r3),(p-tri.r3)) , N)>=0){
+                Hit hit=cons_Hit(t,p,N);
+                hit.mat=tri.mat;
+                return hit;
+            }
+        }
+    }
+    return init_Hit();
+}
+
+Hit first_intersect(global const Triangle* tris, const int tris_size, const Ray ray){
+    Hit best_hit=init_Hit();
+    for(int i=0; i<tris_size; ++i){
+        Hit hit=triangle_intersect(tris[i], ray);
+        if(hit.t>0 && (best_hit.t<0 || hit.t<best_hit.t)){
+            best_hit=hit;
+        }
+    }
+    return best_hit;
+}
+
 Ray new_ray_diffuse(Hit hit, float2 rnds, Ray old_ray){
     float3 X,Y,Z;
     Y=hit.N;
-    //if(dot(old_ray.D,hit.N)>0){
-    //    Y=-Y;
-    //}
     ortho_normal_system(&Y,&Z,&X);
     float rnd1,rnd2,r,theta,x,y,z;
     rnd1=rnds.x;
@@ -168,19 +172,14 @@ Ray new_ray_refractive(Hit hit, Ray old_ray, bool in){
     }
 }
 
-float3 light_point(Hit hit, float2 rnds){
-    float3 p1=(float3)(300.0f, 999.9f, 300.0f);
-    float3 p2=(float3)(700.0f, 999.9f, 300.0f);
-    float3 p3=(float3)(300.0f, 999.9f, 700.0f);
-    float3 p4=(float3)(700.0f, 999.9f, 700.0f);
-
-    float3 v1=p1+(p2-p1)*rnds.x;
-    float3 v2=p3+(p4-p3)*rnds.x;
-
-    return v1+(v2-v1)*rnds.y;
+float3 light_dir(Hit hit, Light l, float2 rnds){
+    float3 v1=l.p1+(l.p2-l.p1)*rnds.x;
+    float3 v2=l.p4+(l.p3-l.p4)*rnds.x;
+    float3 v=v1+(v2-v1)*rnds.y;
+    return normalize(v-(hit.P+hit.N*0.001f));
 }
 
-void kernel trace_ray(global const Triangle* tris, const int tris_size, global Ray* rays, global float2* rnds, const int iterations, const int current_sample, const Camera cam, global float3* colors){
+void kernel trace_ray(global const Triangle* tris, const int tris_size, global const Light* lights, const int lights_size, global Ray* rays, global float2* rnds, const int iterations, const int current_sample, const Camera cam, global float3* colors){
     int id=get_global_id(1)*get_global_size(0) + get_global_id(0);
     float3 factor_A=(float3)(1.0f, 1.0f, 1.0f);
     float3 factor_B=(float3)(1.0f, 1.0f, 1.0f);
@@ -197,60 +196,54 @@ void kernel trace_ray(global const Triangle* tris, const int tris_size, global R
         Hit hit=first_intersect(tris, tris_size, rays[id]);
 
         if(hit.t>0){
-            if(dot(rays[id].D,hit.N)>0){                                                                                                // to detect if we approach the triangle fromt he front or from behind
+            if(dot(rays[id].D,hit.N)>0){                                                                                                            // hence the angle between D and N will always be less than 90 degree
                 hit.N=-hit.N;
             }
-            if(hit.mat.type==0){
+            for(int i=0;i<lights_size;++i){                                                                                                         // sample all lights
                 rnds[id]=rand(rnds[id]);
-                float3 light_p=light_point(hit,rnds[id]);                                                                                   // random point on light surface
-                Ray shadow_ray=cons_Ray(hit.P+hit.N*0.001f, normalize(light_p-(hit.P+hit.N*0.001f)));                                                 // shadow ray from hit point to the light
-                Hit shadow_hit=first_intersect(tris, tris_size, shadow_ray);                                                                // calculate the shadow ray's intersection point
-                if(shadow_hit.mat.type==3){                                                                                                 // if it was a light emitter
-                    float dist=length(light_p-shadow_ray.P)/500;
-                    float att=1.0f/(1.0f + 0.1f*dist + 0.01f*dist*dist);
-
+                Ray shadow_ray=cons_Ray(hit.P+hit.N*0.001f, light_dir(hit, lights[i], rnds[id]));
+                Hit shadow_hit=first_intersect(tris, tris_size, shadow_ray);
+                if(shadow_hit.mat.type==3){                                                                                                         // detect if there aren't any obstacles between the object and the light
                     float cos_theta=dot(shadow_ray.D, hit.N);
                     float intensity_diffuse=fmax(0.0f, cos_theta);
-                    color=color + shadow_hit.mat.emission*hit.mat.kd*intensity_diffuse*factor_A*factor_S*factor_R;
+                    color=color + shadow_hit.mat.emission*hit.mat.kd*intensity_diffuse*factor_A*factor_S*factor_R;                                  // diffuse color
 
-                    float3 halfway=normalize(camera_get_view_dir(hit, cam) + shadow_ray.D);
+                    float3 halfway=normalize(camera_view_dir(hit, cam) + shadow_ray.D);
                     float cos_delta=dot(hit.N, halfway);
                     float intensity_specular=fmax(0.0f, cos_delta);
-                    color=color + shadow_hit.mat.emission*hit.mat.ks*pow(intensity_specular, hit.mat.shininess)*factor_B*factor_S*factor_R;
+                    color=color + shadow_hit.mat.emission*hit.mat.ks*pow(intensity_specular, hit.mat.shininess)*factor_B*factor_S*factor_R;         // specular color
                 }
-
+            }
+            if(hit.mat.type==0){                                                                                    // diffuse
                 Ray old_ray=rays[id];
                 rnds[id]=rand(rnds[id]);
                 Ray new_ray=new_ray_diffuse(hit, rnds[id], old_ray);
                 rays[id]=new_ray;
-
-                float dist=length(light_p-shadow_ray.P)/500;
-                float att=1.0f/(1.0f + 0.1f*dist + 0.01f*dist*dist);
 
                 float cos_theta=dot(new_ray.D, hit.N);
                 float intensity_diffuse=fmax(0.0f, cos_theta);
                 //factor_A=factor_A*(hit.mat.kd*intensity_diffuse)*(5);
                 factor_A=factor_A*(hit.mat.kd*intensity_diffuse)*(5)*factor_S*factor_R;
 
-                float3 halfway=normalize(camera_get_view_dir(hit, cam) + new_ray.D);
+                float3 halfway=normalize(camera_view_dir(hit, cam) + new_ray.D);
                 float cos_delta=dot(hit.N, halfway);
                 float intensity_specular=fmax(0.0f, cos_delta);
                 //factor_B=factor_B*(hit.mat.ks*pow(intensity_specular, hit.mat.shininess))*(5);
                 factor_B=factor_B*(hit.mat.ks*pow(intensity_specular, hit.mat.shininess))*(5)*factor_S*factor_R;
             }
-            if(hit.mat.type==1){
+            if(hit.mat.type==1){                                                                                    // specular
                 Ray old_ray=rays[id];
                 rays[id]=new_ray_specular(hit, old_ray);
                 factor_S=factor_S*Fresnel(hit, old_ray);
             }
-            if(hit.mat.type==2){
+            if(hit.mat.type==2){                                                                                    // refractive
                 Ray old_ray=rays[id];
                 rays[id]=new_ray_refractive(hit, old_ray, in);
                 Ray new_ray=rays[id];
                 factor_R=factor_R*(1-Fresnel(hit, old_ray));
                 in=!in;
             }
-            if(hit.mat.type==3){
+            if(hit.mat.type==3){                                                                                    // emitter
                 Ray old_ray=rays[id];
                 rnds[id]=rand(rnds[id]);
                 Ray new_ray=new_ray_diffuse(hit, rnds[id], old_ray);
