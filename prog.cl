@@ -11,12 +11,13 @@ typedef struct{
 typedef struct{
     float t;
     float3 P,N;
+    ushort mati;
     Material mat;
 } Hit;
 
 typedef struct{
     float3 r1,r2,r3,N;
-    Material mat;
+    ushort mati;
 } Triangle;
 
 typedef struct{
@@ -79,12 +80,12 @@ Ray cons_Ray(float3 p, float3 d){
     Ray ray; ray.P=p; ray.D=d; return ray;
 }
 
-Hit cons_Hit(float t, float3 p, float3 n){
-    Hit hit; hit.t=t; hit.P=p; hit.N=n; return hit;
+Hit cons_Hit(float t, float3 p, float3 n, ushort mati){
+    Hit hit; hit.t=t; hit.P=p; hit.N=n; hit.mati=mati; return hit;
 }
 
 Hit init_Hit(){
-    return cons_Hit(-1.0f, (float3)(0.0f, 0.0f, 0.0f), (float3)(0.0f, 0.0f, 0.0f));
+    return cons_Hit(-1.0f, (float3)(0.0f, 0.0f, 0.0f), (float3)(0.0f, 0.0f, 0.0f), -1);
 }
 
 Ray camera_get_ray(int id, Camera cam, float2 rnds){
@@ -115,9 +116,7 @@ Hit triangle_intersect(Triangle tri, Ray ray){
     if( dot( cross((tri.r2-tri.r1),(p-tri.r1)) , N) >= 0){
         if( dot( cross((tri.r3-tri.r2),(p-tri.r2)) , N)>=0){
             if( dot( cross((tri.r1-tri.r3),(p-tri.r3)) , N)>=0){
-                hit=cons_Hit(t,p,N);
-                hit.mat=tri.mat;
-                return hit;
+                return cons_Hit(t,p,N,tri.mati);
             }
         }
     }
@@ -234,6 +233,7 @@ continue_search( leaf, ray, tmin, tmax ){
 void kernel trace_ray(write_only image2d_t tex,
                         global const Triangle* tris,
                         const int tris_size,
+                        global const Material* materials,
                         global const Light* lights,
                         const int lights_size,
                         global Ray* rays,
@@ -258,6 +258,7 @@ void kernel trace_ray(write_only image2d_t tex,
         Hit hit=first_intersect(tris, tris_size, rays[id]);
 
         if(hit.t>0){
+            hit.mat=materials[hit.mati];
             if(dot(rays[id].D,hit.N)>0){                                                                                                            // hence the angle between D and N will always be less than 90 degree
                 hit.N=-hit.N;
             }
