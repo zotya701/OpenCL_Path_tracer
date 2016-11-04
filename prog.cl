@@ -87,12 +87,11 @@ Hit init_Hit(){
     return cons_Hit(-1.0f, (float3)(0.0f, 0.0f, 0.0f), (float3)(0.0f, 0.0f, 0.0f));
 }
 
-Ray camera_get_ray(int id, Camera cam, global float2* rnds){
-    rnds[id]=rand(rnds[id]);
+Ray camera_get_ray(int id, Camera cam, float2 rnds){
     int X=cam.XM;
     int Y=cam.YM;
-    float x=id%X+rnds[id].x;
-    float y=id/X+rnds[id].y;
+    float x=id%X+rnds.x;
+    float y=id/X+rnds.y;
     float3 p=cam.lookat + cam.right*(2.0f*x/cam.XM-1) + cam.up*(2*y/cam.YM-1);
     float3 d=normalize(p-cam.eye);
     
@@ -187,13 +186,68 @@ float4 filmic_tone(float3 c){
     return (float4)(c.x, c.y, c.z, 1.0f);
 }
 
-void kernel trace_ray(write_only image2d_t tex, global const Triangle* tris, const int tris_size, global const Light* lights, const int lights_size, global Ray* rays, global float2* rnds, const int iterations, const int current_sample, const Camera cam, global float3* colors){
+
+/*
+kd_search( tree, ray ){
+    (global_tmin, global_tmax) = intersect( tree.bounds, ray )
+    search_node( tree.root, ray, global_tmin, global_tmax )
+}
+search_node( node, ray, tmin, tmax ){
+    if( node.is_leaf ){
+        search_leaf( node, ray, tmin, tmax )
+    }else{
+        search_split( node, ray, tmin, tmax )
+    }
+}
+search_split( split, ray, tmin, tmax ){
+    a = split.axis
+    thit = ( split.value - ray.origin[a] ) / ray.direction[a]
+    (first, second) = order( ray.direction[a], split.left, split.right )
+    if( thit >= tmax or thit < 0 ){
+        search_node( first, ray, tmin, tmax )
+    }else if( thit <= tmin ){
+        search_node( second, ray, tmin, tmax )
+    }else{
+        search_node( first, ray, tmin, thit )
+    }
+}
+search_leaf( leaf, ray, tmin, tmax ){
+    // search for a hit in this leaf
+    if( found_hit and hit.t < tmax ){
+        succeed( hit )
+    }else{
+        continue_search( leaf, ray, tmin, tmax )
+    }
+}
+continue_search( leaf, ray, tmin, tmax ){
+    if( tmax == global_tmax ){
+        fail()
+    }else{
+        tmin = tmax
+        tmax = global_tmax
+        search_node( tree.root, ray, tmin, tmax )
+    }
+}
+*/
+
+
+void kernel trace_ray(write_only image2d_t tex,
+                        global const Triangle* tris,
+                        const int tris_size,
+                        global const Light* lights,
+                        const int lights_size,
+                        global Ray* rays,
+                        global float2* rnds,
+                        const int iterations,
+                        const int current_sample,
+                        const Camera cam,
+                        global float3* colors){
     int id=get_global_id(1)*get_global_size(0) + get_global_id(0);
     float3 factor_A=(float3)(1.0f, 1.0f, 1.0f);
     float3 factor_B=(float3)(1.0f, 1.0f, 1.0f);
     float3 factor_S=(float3)(1.0f, 1.0f, 1.0f);
     float3 factor_R=(float3)(1.0f, 1.0f, 1.0f);
-    float3 color=(float3)(0.0f, 0.0f, 0.0f);
+    float3 color=(float3)(0.1f, 0.1f, 0.1f);
     
     if(current_sample==0){
         colors[id]=color;
@@ -242,6 +296,8 @@ void kernel trace_ray(write_only image2d_t tex, global const Triangle* tris, con
                 rays[id]=new_ray;
                 color=color + hit.mat.emission*(factor_A + factor_B)*factor_S*factor_R*(current+1);
             }
+        }else{
+            break;
         }
     }
     
@@ -316,5 +372,6 @@ void kernel trace_ray(write_only image2d_t tex, global const Triangle* tris, con
 
 void kernel gen_ray(global Ray* rays, const Camera camera, global float2* rnds){
     int id=get_global_id(0);
-    rays[id]=camera_get_ray(id, camera, rnds);
+    rnds[id]=rand(rnds[id]);
+    rays[id]=camera_get_ray(id, camera, rnds[id]);
 }
