@@ -15,10 +15,10 @@
 #define clear_line() printf("\r                                                                                                                             \r");
 
 int WINID=0;
-//const int screen_width=192*3;
-//const int screen_height=108*3;
-const int screen_width=600;
-const int screen_height=400;
+const int screen_width=192*3;
+const int screen_height=108*3;
+//const int screen_width=600;
+//const int screen_height=400;
 const int max_iterations=15;
 int iterations=1;
 int current_sample=0;
