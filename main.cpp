@@ -89,12 +89,25 @@ private:
     cl_float3 P,D;  //origo and direction
 };
 
-//class Hit{
-//private:
-//    cl_float t;         //time
-//    cl_float3 P,N;      //hitposition and normal vector in hitposition
-//    Material mat;       //material of the triangle what was hit by the ray
-//};
+class BBox{
+private:
+    cl_float3 bl,tr;
+public:
+    BBox(){
+        bl=(cl_float3){0,0,0};
+        tr=(cl_float3){0,0,0};
+    }
+    BBox(cl_float3 bl, cl_float3 tr){
+        this->bl=bl;
+        this->tr=tr;
+    }
+    expand(BBox box){
+        for(int i=0;i<3;++i){
+            if (box.bl.s[i] < bl.s[i]) bl.s[i] = box.bl.s[i];
+            if (box.tr.s[i] > tr.s[i]) tr.s[i] = box.tr.s[i];
+        }
+    }
+};
 
 class Triangle{
 private:
@@ -123,6 +136,115 @@ public:
         }
 
         this->N=(cl_float3){n[0], n[1], n[2]};
+    }
+    BBox bbox(){
+        cl_float3 bl, tr;
+        for(int i=0;i<3;++i){
+            bl.s[i]=std::min(std::min(r1.s[i], r2.s[i]),r3.s[i]);
+            tr.s[i]=std::max(std::max(r1.s[i], r2.s[i]),r3.s[i]);
+        }
+        return BBox(bl, tr);
+    }
+    cl_float3 midpoint(){
+        cl_float3 mp;
+        for(int i=0;i<3;++i){
+            mp.s[i]=(r1.s[i] + r2.s[i] + r3.s[i])/3.0f;
+        }
+        return mp;
+    }
+};
+
+class Node{
+private:
+public:
+    Node(){
+        
+    }
+};
+
+class KDNode{
+private:
+    BBox box;
+    KDNode* left;
+    KDNode* right;
+    std::vector<Triangle> triangles;
+    bool leaf;
+public:
+    KDNode(){
+        box=BBox();
+        left=NULL;
+        right=NULL;
+        triangles=std::vector<Triangle>();
+        leaf=false;
+    };
+    KDNode* build(std::vector<Triangle> &tris, int depth){
+        KDNode *node=new KDNode();
+        node->leaf=false;
+        node->triangles=std::vector<Triangle>();
+        node->left=NULL;
+        node->right=NULL;
+        node->box=BBox();
+
+        if(tris.size()==0) return node;
+        
+        if(tris.size()<=6){
+            node->triangles=tris;
+            node->leaf=true;
+            node->box=tris[0].bbox();
+            for(long i=1;i<tris.size();i++){
+                node->box.expand(tris[i].bbox());
+            }
+            node->left=new KDNode();
+            node->right=new KDNode();
+            node->left->triangles=std::vector<Triangle>();
+            node->right->triangles=std::vector<Triangle>();
+            return node;
+        }
+
+        node->box=tris[0].bbox();
+        cl_float3 midpt=tris[0].midpoint();
+
+        for(long i=1;i<tris.size();i++){
+            node->box.expand(tris[i].bbox());
+            cl_float3 mp=tris[i].midpoint();
+            for(int i=0;i<3;++i){
+                midpt.s[i]=midpt.s[i] + mp.s[i];
+            }
+        }
+        
+        for(int i=0;i<3;++i){
+            midpt.s[i]=midpt.s[i]/tris.size();
+        }
+
+        std::vector<Triangle> left_tris;
+        std::vector<Triangle> right_tris;
+        int axis=depth%3;
+
+        for(long i=0;i<tris.size();i++){
+            cl_float3 mp=tris[i].midpoint();
+            midpt.s[axis] >= mp.s[axis] ? right_tris.push_back(tris[i]) : left_tris.push_back(tris[i]);
+        }
+
+        if(tris.size()==left_tris.size() || tris.size()==right_tris.size()){
+            node->triangles=tris;
+            node->leaf=true;
+            node->box=tris[0].bbox();
+
+            for(long i=1;i<tris.size();i++){
+                node->box.expand(tris[i].bbox());
+            }
+
+            node->left=new KDNode();
+            node->right=new KDNode();
+            node->left->triangles=std::vector<Triangle>();
+            node->right->triangles=std::vector<Triangle>();
+
+            return node;
+        }
+
+        node->left=build(left_tris, depth+1);
+        node->right=build(right_tris, depth+1);
+        return node;
     }
 };
 
@@ -366,6 +488,9 @@ public:
         tris_size=tris.size();
         buffer_tris=cl::Buffer(context,CL_MEM_READ_ONLY,sizeof(Triangle)*tris_size);
         queue.enqueueWriteBuffer(buffer_tris,CL_TRUE,0,sizeof(Triangle)*tris_size,&tris[0]);
+        
+        KDNode* node=new KDNode();
+        node=node->build(tris,0);
     }
     void upload_Materials(){
         buffer_mats=cl::Buffer(context,CL_MEM_READ_ONLY,sizeof(Material)*mats.size());
