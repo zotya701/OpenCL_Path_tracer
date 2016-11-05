@@ -5,8 +5,8 @@
 #include <ctime>
 #include <cmath>
 #include <random>
-#include <thread>
-#include <mutex>
+#include <vector>
+#include <queue>
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <GL/glut.h>
@@ -34,8 +34,6 @@ bool real_time=true;
 
 std::default_random_engine generator;
 std::uniform_real_distribution<double> distribution(0.0f,1.0f);
-
-std::mutex mutex;
 
 cl_float3 rotate_z(cl_float3 v, float alpha){
     alpha=alpha/180.0f*3.141593f;
@@ -156,9 +154,12 @@ public:
 
 class Node{
 private:
+    cl_int2 trii;
+    BBox bbox;
 public:
-    Node(){
-        
+    Node(cl_int2 trii, BBox bbox){
+        this->trii=trii;
+        this->bbox=bbox;
     }
 };
 
@@ -245,6 +246,36 @@ public:
         node->left=build(left_tris, depth+1);
         node->right=build(right_tris, depth+1);
         return node;
+    }
+    void convert(KDNode* root, std::vector<Node>& kdarr, std::vector<Triangle>& neworder){
+        if (root==NULL){
+            return;
+        }
+        std::queue<KDNode*> q;
+        q.push(root);
+        int from=0;
+        int to=0;
+        while(q.empty()==false){
+            KDNode* kdnode=q.front();
+            if(kdnode->leaf){
+                to=to+kdnode->triangles.size();
+                kdarr.push_back(Node((cl_int2){from, to}, kdnode->box));
+                for(int i=0;i<kdnode->triangles.size();++i){
+                    neworder.push_back(kdnode->triangles[i]);
+                }
+                from=from+kdnode->triangles.size();
+            }else{
+                kdarr.push_back(Node((cl_int2){-1, -1}, kdnode->box));
+            }
+            q.pop();
+
+            if(kdnode->left!= NULL){
+                q.push(kdnode->left);
+            }
+            if(kdnode->right != NULL){
+                q.push(kdnode->right);
+            }
+        }
     }
 };
 
@@ -489,8 +520,11 @@ public:
         buffer_tris=cl::Buffer(context,CL_MEM_READ_ONLY,sizeof(Triangle)*tris_size);
         queue.enqueueWriteBuffer(buffer_tris,CL_TRUE,0,sizeof(Triangle)*tris_size,&tris[0]);
         
-        KDNode* node=new KDNode();
-        node=node->build(tris,0);
+        KDNode* root=new KDNode();
+        root=root->build(tris,0);
+        std::vector<Node> kdarr;
+        std::vector<Triangle> ordered;
+        root->convert(root, kdarr, ordered);
     }
     void upload_Materials(){
         buffer_mats=cl::Buffer(context,CL_MEM_READ_ONLY,sizeof(Material)*mats.size());
