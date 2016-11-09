@@ -195,10 +195,10 @@ public:
             for(long i=1;i<tris.size();i++){
                 node->box.expand(tris[i].bbox());
             }
-            node->left=new KDNode();
-            node->right=new KDNode();
-            node->left->triangles=std::vector<Triangle>();
-            node->right->triangles=std::vector<Triangle>();
+            node->left=NULL;
+            node->right=NULL;
+            //node->left->triangles=std::vector<Triangle>();
+            //node->right->triangles=std::vector<Triangle>();
             return node;
         }
 
@@ -223,7 +223,11 @@ public:
 
         for(long i=0;i<tris.size();i++){
             cl_float3 mp=tris[i].midpoint();
-            midpt.s[axis] >= mp.s[axis] ? right_tris.push_back(tris[i]) : left_tris.push_back(tris[i]);
+            //midpt.s[axis] >= mp.s[axis] ? right_tris.push_back(tris[i]) : left_tris.push_back(tris[i]);
+            if(midpt.s[axis] >= mp.s[axis])
+                right_tris.push_back(tris[i]);
+            else
+                left_tris.push_back(tris[i]);
         }
 
         if(tris.size()==left_tris.size() || tris.size()==right_tris.size()){
@@ -235,45 +239,62 @@ public:
                 node->box.expand(tris[i].bbox());
             }
 
-            node->left=new KDNode();
-            node->right=new KDNode();
-            node->left->triangles=std::vector<Triangle>();
-            node->right->triangles=std::vector<Triangle>();
+            node->left=NULL;
+            node->right=NULL;
+            //node->left->triangles=std::vector<Triangle>();
+            //node->right->triangles=std::vector<Triangle>();
 
             return node;
         }
-
-        node->left=build(left_tris, depth+1);
-        node->right=build(right_tris, depth+1);
+        
+        if(!node->leaf){
+            node->left=build(left_tris, depth+1);
+            node->right=build(right_tris, depth+1);
+        }
         return node;
     }
     void convert(KDNode* root, std::vector<Node>& kdarr, std::vector<Triangle>& neworder){
         if (root==NULL){
             return;
         }
-        std::queue<KDNode*> q;
-        q.push(root);
+        
+        struct tuple{
+            KDNode* node;
+            int i;
+            tuple(KDNode* node, int i){
+                this->node=node; this->i=i;
+            }
+        };
+        
+        std::queue<tuple> q;
+        q.push(tuple(root, 1));
         int from=0;
         int to=0;
         while(q.empty()==false){
-            KDNode* kdnode=q.front();
-            if(kdnode->leaf){
-                to=to+kdnode->triangles.size();
-                kdarr.push_back(Node((cl_int2){from, to}, kdnode->box));
-                for(int i=0;i<kdnode->triangles.size();++i){
-                    neworder.push_back(kdnode->triangles[i]);
+            tuple pair=q.front();
+            if(pair.node->leaf){
+                to=to+pair.node->triangles.size();
+                //kdarr.push_back(Node((cl_int2){from, to}, pair.node->box));
+                while(kdarr.size()<=pair.i)
+                        kdarr.push_back(Node((cl_int2){-1, -1}, pair.node->box));
+                kdarr[pair.i]=Node((cl_int2){from, to}, pair.node->box);
+                for(int i=0;i<pair.node->triangles.size();++i){
+                    neworder.push_back(pair.node->triangles[i]);
                 }
-                from=from+kdnode->triangles.size();
+                from=from+pair.node->triangles.size();
             }else{
-                kdarr.push_back(Node((cl_int2){-1, -1}, kdnode->box));
+                //kdarr.push_back(Node((cl_int2){-1, -1}, pair.node->box));
+                while(kdarr.size()<=pair.i)
+                        kdarr.push_back(Node((cl_int2){-1, -1}, pair.node->box));
+                kdarr[pair.i]=Node((cl_int2){-1, -1}, pair.node->box);
             }
             q.pop();
 
-            if(kdnode->left!= NULL){
-                q.push(kdnode->left);
+            if(pair.node->left!= NULL){
+                q.push(tuple(pair.node->left, pair.i*2));
             }
-            if(kdnode->right != NULL){
-                q.push(kdnode->right);
+            if(pair.node->right != NULL){
+                q.push(tuple(pair.node->right, pair.i*2+1));
             }
         }
     }
@@ -322,18 +343,6 @@ public:
     }
 };
 
-class Light{
-private:
-    cl_float3 p1,p2,p3,p4;
-public:
-    Light(cl_float3 p1, cl_float3 p2, cl_float3 p3, cl_float3 p4){
-        this->p1=p1;
-        this->p2=p2;
-        this->p3=p3;
-        this->p4=p4;
-    }
-};
-
 class Color{
 public:
     float r,g,b;
@@ -353,15 +362,15 @@ private:
     std::vector<Triangle> tris;
     int tris_size;
     std::vector<Material> mats;
-    std::vector<Light> lights;
-    int lights_size;
+    std::vector<Node> kd_tree;
+    int kd_tree_size;
     int rays_size=screen_width*screen_height;
     
     cl::Context context;
     cl::Program program;
     cl::Buffer buffer_tris;
     cl::Buffer buffer_mats;
-    cl::Buffer buffer_lights;
+    cl::Buffer buffer_kd_tree;
     cl::Buffer buffer_rays;
     cl::Buffer buffer_rnds;
     cl::Buffer buffer_colors;
@@ -512,28 +521,26 @@ public:
     void add_Material(Material mat){
         mats.push_back(mat);
     }
-    void add_Light(Light l){
-        lights.push_back(l);
-    }
     void upload_Triangles(){
+        KDNode* root=new KDNode();
+        root=root->build(tris,0);
+        kd_tree.clear();
+        tris.clear();
+        printf("%d %d\n\r",kd_tree.size(), tris.size());
+        root->convert(root, kd_tree, tris);
+        printf("%d %d\n\r",kd_tree.size(), tris.size());
+        
+        kd_tree_size=kd_tree.size();
+        buffer_kd_tree=cl::Buffer(context,CL_MEM_READ_ONLY,sizeof(Node)*kd_tree_size);
+        queue.enqueueWriteBuffer(buffer_kd_tree,CL_TRUE,0,sizeof(Node)*kd_tree_size,&kd_tree[0]);
+        
         tris_size=tris.size();
         buffer_tris=cl::Buffer(context,CL_MEM_READ_ONLY,sizeof(Triangle)*tris_size);
         queue.enqueueWriteBuffer(buffer_tris,CL_TRUE,0,sizeof(Triangle)*tris_size,&tris[0]);
-        
-        KDNode* root=new KDNode();
-        root=root->build(tris,0);
-        std::vector<Node> kdarr;
-        std::vector<Triangle> ordered;
-        root->convert(root, kdarr, ordered);
     }
     void upload_Materials(){
         buffer_mats=cl::Buffer(context,CL_MEM_READ_ONLY,sizeof(Material)*mats.size());
         queue.enqueueWriteBuffer(buffer_mats,CL_TRUE,0,sizeof(Material)*mats.size(),&mats[0]);
-    }
-    void upload_Lights(){
-        lights_size=lights.size();
-        buffer_lights=cl::Buffer(context,CL_MEM_READ_ONLY,sizeof(Light)*lights_size);
-        queue.enqueueWriteBuffer(buffer_lights,CL_TRUE,0,sizeof(Light)*lights_size,&lights[0]);
     }
     void generate_rays(){
         camera=Camera();
@@ -554,8 +561,8 @@ public:
         kernel_trace_ray.setArg(1,buffer_tris);
         kernel_trace_ray.setArg(2,tris_size);
         kernel_trace_ray.setArg(3,buffer_mats);
-        kernel_trace_ray.setArg(4,buffer_lights);
-        kernel_trace_ray.setArg(5,lights_size);
+        kernel_trace_ray.setArg(4,buffer_kd_tree);
+        kernel_trace_ray.setArg(5,kd_tree_size);
         kernel_trace_ray.setArg(6,buffer_rays);
         kernel_trace_ray.setArg(7,buffer_rnds);
         kernel_trace_ray.setArg(8,iterations);
@@ -604,7 +611,6 @@ void onInitialization( ) {
     //lámpa
     scene.add_Triangle(Triangle((cl_float3){300.0f, 999.9f, 700.0f}, (cl_float3){300.0f, 999.9f, 300.0f}, (cl_float3){700.0f, 999.9f, 700.0f}, LAMP));
     scene.add_Triangle(Triangle((cl_float3){700.0f, 999.9f, 700.0f}, (cl_float3){300.0f, 999.9f, 300.0f}, (cl_float3){700.0f, 999.9f, 300.0f}, LAMP));
-    scene.add_Light(Light((cl_float3){300.0f, 999.9f, 300.0f}, (cl_float3){700.0f, 999.9f, 300.0f}, (cl_float3){700.0f, 999.9f, 700.0f}, (cl_float3){300.0f, 999.9f, 700.0f}));
     
     //elől
     scene.add_Triangle(Triangle((cl_float3){-100.0f, 0.0f, 1000.0f}, (cl_float3){-100.0f, 1000.0f, 1000.0f}, (cl_float3){1100.0f, 1000.0f, 1000.0f}, WHITE_DIFFUSE));
@@ -634,9 +640,9 @@ void onInitialization( ) {
     //arany cucc
     //cl_float3 move=(cl_float3){750.0f, 0.001f, 300.0f};
     //cl_float3 move=(cl_float3){700.0f, 0.001f, -400.0f};
-    cl_float3 move=(cl_float3){500.0f, 0.001f, 500.0f};
+    cl_float3 move=(cl_float3){200.0f, 0.001f, 400.0f+500};
     //cl_float3 scale=(cl_float3){1.5f, 0.28284f*3, 1.5f};
-    cl_float3 scale=(cl_float3){5.5f, 0.28284f*0.28284f, 5.5f};
+    cl_float3 scale=(cl_float3){1.5f, 0.28284f*0.28284f, 1.5f};
     //felül
     scene.add_Triangle(Triangle((cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], -100.0f*scale.s[2]+move.s[2]}, (cl_float3){100.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 0.0f*scale.s[2]+move.s[2]}, (cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 100.0f*scale.s[2]+move.s[2]}, GOLD));
     scene.add_Triangle(Triangle((cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], -100.0f*scale.s[2]+move.s[2]}, (cl_float3){-100.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 0.0f*scale.s[2]+move.s[2]}, (cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 100.0f*scale.s[2]+move.s[2]}, GOLD));
@@ -658,28 +664,30 @@ void onInitialization( ) {
     
 
     //üveg hasáb
-    float asd=40;
-    scene.add_Triangle(Triangle((cl_float3){0.0f, 0.0f+asd, 500.0f}, (cl_float3){0.0f, 600.0f+asd, 500.0f}, (cl_float3){400.0f, 600.0f+asd, 500.0f}, GLASS));
-    scene.add_Triangle(Triangle((cl_float3){400.0f, 600.0f+asd, 500.0f}, (cl_float3){400.0f, 0.0f+asd, 500.0f}, (cl_float3){0.0f, 0.0f+asd, 500.0f}, GLASS));
-    
-    scene.add_Triangle(Triangle((cl_float3){0.0f, 0.0f+asd, 600.0f}, (cl_float3){0.0f, 600.0f+asd, 600.0f}, (cl_float3){400.0f, 600.0f+asd, 600.0f}, GLASS));
-    scene.add_Triangle(Triangle((cl_float3){400.0f, 600.0f+asd, 600.0f}, (cl_float3){400.0f, 0.0f+asd, 600.0f}, (cl_float3){0.0f, 0.0f+asd, 600.0f}, GLASS));
-    
-    scene.add_Triangle(Triangle((cl_float3){0.0f, 0.0f+asd, 500.0f}, (cl_float3){0.0f, 0.0f+asd, 600.0f}, (cl_float3){0.0f, 600.0f+asd, 600.0f}, GLASS));
-    scene.add_Triangle(Triangle((cl_float3){0.0f, 0.0f+asd, 500.0f}, (cl_float3){0.0f, 600.0f+asd, 500.0f}, (cl_float3){0.0f, 600.0f+asd, 600.0f}, GLASS));
-    
-    scene.add_Triangle(Triangle((cl_float3){400.0f, 0.0f+asd, 500.0f}, (cl_float3){400.0f, 0.0f+asd, 600.0f}, (cl_float3){400.0f, 600.0f+asd, 600.0f}, GLASS));
-    scene.add_Triangle(Triangle((cl_float3){400.0f, 0.0f+asd, 500.0f}, (cl_float3){400.0f, 600.0f+asd, 500.0f}, (cl_float3){400.0f, 600.0f+asd, 600.0f}, GLASS));
-    
-    scene.add_Triangle(Triangle((cl_float3){0.0f, 600.0f+asd, 500.0f}, (cl_float3){400.0f, 600.0f+asd, 500.0f}, (cl_float3){400.0f, 600.0f+asd, 600.0f}, GLASS));
-    scene.add_Triangle(Triangle((cl_float3){0.0f, 600.0f+asd, 500.0f}, (cl_float3){0.0f, 600.0f+asd, 600.0f}, (cl_float3){400.0f, 600.0f+asd, 600.0f}, GLASS));
-    
-    scene.add_Triangle(Triangle((cl_float3){0.0f, 0.0f+asd, 500.0f}, (cl_float3){400.0f, 0.0f+asd, 500.0f}, (cl_float3){400.0f, 0.0f+asd, 600.0f}, GLASS));
-    scene.add_Triangle(Triangle((cl_float3){0.0f, 0.0f+asd, 500.0f}, (cl_float3){0.0f, 0.0f+asd, 600.0f}, (cl_float3){400.0f, 0.0f+asd, 600.0f}, GLASS));
+    float movx=300-200;
+    float movy=0;
+    float movz=-150+200-600;
+//    scene.add_Triangle(Triangle((cl_float3){0.0f+movx, 0.0f+movy, 500.0f+movz}, (cl_float3){0.0f+movx, 600.0f+movy, 500.0f+movz}, (cl_float3){400.0f+movx, 600.0f+movy, 500.0f+movz}, GLASS));
+//    scene.add_Triangle(Triangle((cl_float3){400.0f+movx, 600.0f+movy, 500.0f+movz}, (cl_float3){400.0f+movx, 0.0f+movy, 500.0f+movz}, (cl_float3){0.0f+movx, 0.0f+movy, 500.0f+movz}, GLASS));
+//    
+//    scene.add_Triangle(Triangle((cl_float3){0.0f+movx, 0.0f+movy, 600.0f+movz}, (cl_float3){0.0f+movx, 600.0f+movy, 600.0f+movz}, (cl_float3){400.0f+movx, 600.0f+movy, 600.0f+movz}, GLASS));
+//    scene.add_Triangle(Triangle((cl_float3){400.0f+movx, 600.0f+movy, 600.0f+movz}, (cl_float3){400.0f+movx, 0.0f+movy, 600.0f+movz}, (cl_float3){0.0f+movx, 0.0f+movy, 600.0f+movz}, GLASS));
+//    
+//    scene.add_Triangle(Triangle((cl_float3){0.0f+movx, 0.0f+movy, 500.0f+movz}, (cl_float3){0.0f+movx, 0.0f+movy, 600.0f+movz}, (cl_float3){0.0f+movx, 600.0f+movy, 600.0f+movz}, GLASS));
+//    scene.add_Triangle(Triangle((cl_float3){0.0f+movx, 0.0f+movy, 500.0f+movz}, (cl_float3){0.0f+movx, 600.0f+movy, 500.0f+movz}, (cl_float3){0.0f+movx, 600.0f+movy, 600.0f+movz}, GLASS));
+//    
+//    scene.add_Triangle(Triangle((cl_float3){400.0f+movx, 0.0f+movy, 500.0f+movz}, (cl_float3){400.0f+movx, 0.0f+movy, 600.0f+movz}, (cl_float3){400.0f+movx, 600.0f+movy, 600.0f+movz}, GLASS));
+//    scene.add_Triangle(Triangle((cl_float3){400.0f+movx, 0.0f+movy, 500.0f+movz}, (cl_float3){400.0f+movx, 600.0f+movy, 500.0f+movz}, (cl_float3){400.0f+movx, 600.0f+movy, 600.0f+movz}, GLASS));
+//    
+//    scene.add_Triangle(Triangle((cl_float3){0.0f+movx, 600.0f+movy, 500.0f+movz}, (cl_float3){400.0f+movx, 600.0f+movy, 500.0f+movz}, (cl_float3){400.0f+movx, 600.0f+movy, 600.0f+movz}, GLASS));
+//    scene.add_Triangle(Triangle((cl_float3){0.0f+movx, 600.0f+movy, 500.0f+movz}, (cl_float3){0.0f+movx, 600.0f+movy, 600.0f+movz}, (cl_float3){400.0f+movx, 600.0f+movy, 600.0f+movz}, GLASS));
+//    
+//    scene.add_Triangle(Triangle((cl_float3){0.0f+movx, 0.0f+movy, 500.0f+movz}, (cl_float3){400.0f+movx, 0.0f+movy, 500.0f+movz}, (cl_float3){400.0f+movx, 0.0f+movy, 600.0f+movz}, GLASS));
+//    scene.add_Triangle(Triangle((cl_float3){0.0f+movx, 0.0f+movy, 500.0f+movz}, (cl_float3){0.0f+movx, 0.0f+movy, 600.0f+movz}, (cl_float3){400.0f+movx, 0.0f+movy, 600.0f+movz}, GLASS));
+
     
     scene.upload_Triangles();
     scene.upload_Materials();
-    scene.upload_Lights();
 }
 
 void onDisplay( ) {

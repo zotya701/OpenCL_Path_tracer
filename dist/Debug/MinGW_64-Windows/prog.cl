@@ -1,13 +1,4 @@
 typedef struct{
-    float3 bl,tr;
-} BBox;
-
-typedef struct{
-    int2 trii;
-    BBox bbox;
-} Node;
-
-typedef struct{
     float3 kd,ks,emission,F0;
     float n, shininess, glossiness;
     int type;
@@ -33,6 +24,10 @@ typedef struct{
     float3 eye, lookat, up, right;
     float XM, YM;
 } Camera;
+
+typedef struct{
+    float3 p1,p2,p3,p4;
+} Light;
 
 void rand(global float2* seed){
     int const a = 16807; //ie 7**5
@@ -166,11 +161,18 @@ Ray new_ray_refractive(Hit hit, Ray old_ray, bool in, float rnd){
     float disc=1.0f - (1.0f - cosa*cosa)*hit.mat.n*hit.mat.n;
     float3 F=hit.mat.F0 + ((float3)(1.0f, 1.0f, 1.0f) - hit.mat.F0)*pow(1-cosa, 5);
     float prob=(F.x+F.y+F.z)/3.0f;
-    if(disc>0 && rnd>prob){
+    if(disc>0 && rnd){
         return cons_Ray(hit.P - hit.N*0.001f, normalize(old_ray.D*hit.mat.n + hit.N*(cosa*hit.mat.n - sqrt(disc))));
     }else{
         return cons_Ray(hit.P + hit.N*0.001f, normalize(old_ray.D + hit.N*cosa*2.0f));
     }
+}
+
+float3 light_dir(Hit hit, Light l, float2 rnds){
+    float3 v1=l.p1+(l.p2-l.p1)*rnds.x;
+    float3 v2=l.p4+(l.p3-l.p4)*rnds.x;
+    float3 v=v1+(v2-v1)*rnds.y;
+    return normalize(v-(hit.P+hit.N*0.001f));
 }
 
 float4 filmic_tone(float3 c){
@@ -229,8 +231,8 @@ void kernel trace_ray(write_only image2d_t tex,
                         global const Triangle* tris,
                         const int tris_size,
                         global const Material* materials,
-                        global const Node* kd_tree,
-                        const int kd_tree_size,
+                        global const Light* lights,
+                        const int lights_size,
                         global Ray* rays,
                         global float2* rnds,
                         const int iterations,
@@ -248,12 +250,6 @@ void kernel trace_ray(write_only image2d_t tex,
         colors[id]=color;
     }
     
-    printf("START\n\r");
-    for(int i=1;i<kd_tree_size;++i){
-        printf("%02d from=%02d to=%02d\n\r", i, kd_tree[i].trii.x, kd_tree[i].trii.y);
-    }
-    printf("END\n\r");
-
     bool in=false;
     for(int current=0; current<iterations; ++current){
         Hit hit=first_intersect(tris, tris_size, rays[id]);
