@@ -155,10 +155,12 @@ public:
 class Node{
 private:
     cl_int2 trii;
+    cl_float split;
     BBox bbox;
 public:
-    Node(cl_int2 trii, BBox bbox){
+    Node(cl_int2 trii, cl_float split, BBox bbox){
         this->trii=trii;
+        this->split=split;
         this->bbox=bbox;
     }
 };
@@ -170,6 +172,7 @@ private:
     KDNode* right;
     std::vector<Triangle> triangles;
     bool leaf;
+    float split;
 public:
     KDNode(){
         box=BBox();
@@ -177,6 +180,7 @@ public:
         right=NULL;
         triangles=std::vector<Triangle>();
         leaf=false;
+        split=0;
     };
     KDNode* build(std::vector<Triangle> &tris, int depth){
         KDNode *node=new KDNode();
@@ -221,6 +225,7 @@ public:
         std::vector<Triangle> right_tris;
         int axis=depth%3;
 
+        node->split=midpt.s[axis];
         for(long i=0;i<tris.size();i++){
             cl_float3 mp=tris[i].midpoint();
             //midpt.s[axis] >= mp.s[axis] ? right_tris.push_back(tris[i]) : left_tris.push_back(tris[i]);
@@ -276,8 +281,8 @@ public:
                 to=to+pair.node->triangles.size();
                 //kdarr.push_back(Node((cl_int2){from, to}, pair.node->box));
                 while(kdarr.size()<=pair.i)
-                        kdarr.push_back(Node((cl_int2){-1, -1}, pair.node->box));
-                kdarr[pair.i]=Node((cl_int2){from, to}, pair.node->box);
+                        kdarr.push_back(Node((cl_int2){-1, -1}, pair.node->split, pair.node->box));
+                kdarr[pair.i]=Node((cl_int2){from, to}, pair.node->split, pair.node->box);
                 for(int i=0;i<pair.node->triangles.size();++i){
                     neworder.push_back(pair.node->triangles[i]);
                 }
@@ -285,8 +290,8 @@ public:
             }else{
                 //kdarr.push_back(Node((cl_int2){-1, -1}, pair.node->box));
                 while(kdarr.size()<=pair.i)
-                        kdarr.push_back(Node((cl_int2){-1, -1}, pair.node->box));
-                kdarr[pair.i]=Node((cl_int2){-1, -1}, pair.node->box);
+                        kdarr.push_back(Node((cl_int2){-1, -1}, 0.0f, pair.node->box));
+                kdarr[pair.i]=Node((cl_int2){-1, -1}, pair.node->split, pair.node->box);
             }
             q.pop();
 

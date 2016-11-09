@@ -4,6 +4,7 @@ typedef struct{
 
 typedef struct{
     int2 trii;
+    float split;
     BBox bbox;
 } Node;
 
@@ -16,6 +17,26 @@ typedef struct{
 typedef struct{
     float3 P,D;
 } Ray;
+
+void BBox_intersection(global const BBox* box, global Ray* ray, float* tmin, float* tmax){
+    float tx1=(box->bl.x-ray->P.x)*native_recip(ray->D.x);
+    float tx2=(box->tr.x-ray->P.x)*native_recip(ray->D.x);
+
+    *tmin=fmin(tx1,tx2);
+    *tmax=fmax(tx1,tx2);
+
+    float ty1=(box->bl.y-ray->P.y)*native_recip(ray->D.y);
+    float ty2=(box->tr.y-ray->P.y)*native_recip(ray->D.y);
+
+    *tmin=fmax(*tmin, fmin(ty1,ty2));
+    *tmax=fmin(*tmax, fmax(ty1,ty2));
+
+    float tz1=(box->bl.z-ray->P.z)*native_recip(ray->D.z);
+    float tz2=(box->tr.z-ray->P.z)*native_recip(ray->D.z);
+
+    *tmin=fmax(*tmin, fmin(tz1, tz2));
+    *tmax=fmin(*tmax, fmax(tz1, tz2));
+}
 
 typedef struct{
     float t;
@@ -248,11 +269,15 @@ void kernel trace_ray(write_only image2d_t tex,
         colors[id]=color;
     }
     
-    printf("START\n\r");
-    for(int i=1;i<kd_tree_size;++i){
-        printf("%02d from=%02d to=%02d\n\r", i, kd_tree[i].trii.x, kd_tree[i].trii.y);
-    }
-    printf("END\n\r");
+    //printf("START\n\r");
+    //for(int i=1;i<kd_tree_size;++i){
+    //    printf("%02d from=%02d to=%02d split=%08.3f\n\r", i, kd_tree[i].trii.x, kd_tree[i].trii.y, kd_tree[i].split);
+    //}
+    //printf("END\n\r");
+    //float tmin,tmax;
+    //BBox_intersection(&kd_tree[1].bbox, &rays[id], &tmin, &tmax);
+    //printf("%f %f\n\r", tmin, tmax);
+
 
     bool in=false;
     for(int current=0; current<iterations; ++current){
