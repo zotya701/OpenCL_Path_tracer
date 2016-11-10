@@ -230,19 +230,15 @@ Hit kd_intersect(global const Triangle* tris, global const Node* kd_tree, const 
     bool fail=false;
     bool empty=false;
 
-    //printf("\n\rSTART\n\r");
     while(!empty && !fail && !found){
-        //printf("ptr=%02d\t",ptr);
         if(ptr<kd_tree_size){
             if(BBox_intersection(&kd_tree[ptr].bbox, &ray, &dist)){
-                //printf("dst=%08.3f tmin=%08.3f\t",dist,tmin);
                 /*
                 if(dist>tmin){
                     if(stack_ptr==0){
                         empty=true;
                     }else{
                         ptr=stack_pop(stack, &stack_ptr);
-                        //printf("NEW PTR FROM STACK=%02d, STACK_PTR=%02d\t",ptr,stack_ptr);
                     }
                 }else 
                 */
@@ -252,30 +248,24 @@ Hit kd_intersect(global const Triangle* tris, global const Node* kd_tree, const 
                 }else{
                     hit=first_intersect(tris, kd_tree[ptr].trii.x, kd_tree[ptr].trii.y, ray);
                     tmin=hit.t;
-                    //printf("tmin=%08.3f\t",tmin);
                     if(hit.t>0 && (best_hit.t<0 || hit.t<best_hit.t)){
                         best_hit=hit;
-                        //found=true;
-                        //printf("BEST_HIT\t");
                     }
                     if(stack_ptr==0){
                         empty=true;
                     }else{
                         ptr=stack_pop(stack, &stack_ptr);
-                        //printf("NEW PTR FROM STACK=%02d, STACK_PTR=%02d\t",ptr,stack_ptr);
                     }
                 }
             }else if(stack_ptr==0){
                 empty=true;
             }else{
                 ptr=stack_pop(stack, &stack_ptr);
-                //printf("NEW PTR FROM STACK=%02d, STACK_PTR=%02d\t",ptr,stack_ptr);
             }
         }else{
             fail=true;
         }
     }
-    //printf("\n\rEND\n\r");
     return best_hit;
 }
 
