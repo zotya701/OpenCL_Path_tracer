@@ -19,6 +19,8 @@ const int screen_width=192*3;
 const int screen_height=108*3;
 //const int screen_width=600;
 //const int screen_height=400;
+//const int screen_width=3;
+//const int screen_height=3;
 const int max_iterations=15;
 int iterations=1;
 int current_sample=0;
@@ -99,7 +101,7 @@ public:
         this->bl=bl;
         this->tr=tr;
     }
-    expand(BBox box){
+    void expand(BBox box){
         for(int i=0;i<3;++i){
             if (box.bl.s[i] < bl.s[i]) bl.s[i] = box.bl.s[i];
             if (box.tr.s[i] > tr.s[i]) tr.s[i] = box.tr.s[i];
@@ -611,7 +613,7 @@ void onInitialization( ) {
     GREEN_DIFFUSE=3;    scene.add_Material(Material((cl_float3){0.1f, 0.3f, 0.1f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){0.00f, 0.00f, 0.00f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){ 50}, (cl_int){0}));
     CHROMIUM=4;         scene.add_Material(Material((cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){1.0f, 1.0f, 1.0f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){3.10f, 3.05f, 2.05f}, (cl_float3){3.3f, 3.3f, 2.9f}, (cl_float){  0}, (cl_int){1}));
     GLASS=5;            scene.add_Material(Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){1.50f, 1.50f, 1.50f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){  0}, (cl_int){2}));
-    GOLD=6;             scene.add_Material(Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){0.17f, 0.35f, 1.50f}, (cl_float3){3.1f, 2.7f, 1.9f}, (cl_float){  0}, (cl_int){1}));
+    GOLD=1;             scene.add_Material(Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){0.17f, 0.35f, 1.50f}, (cl_float3){3.1f, 2.7f, 1.9f}, (cl_float){  0}, (cl_int){1}));
     
     //lámpa
     scene.add_Triangle(Triangle((cl_float3){300.0f, 999.9f, 700.0f}, (cl_float3){300.0f, 999.9f, 300.0f}, (cl_float3){700.0f, 999.9f, 700.0f}, LAMP));
@@ -645,10 +647,16 @@ void onInitialization( ) {
     //arany cucc
     //cl_float3 move=(cl_float3){750.0f, 0.001f, 300.0f};
     //cl_float3 move=(cl_float3){700.0f, 0.001f, -400.0f};
-    cl_float3 move=(cl_float3){200.0f, 0.001f, 400.0f+500};
+    //cl_float3 move=(cl_float3){200.0f, 0.001f, 400.0f+500};
     //cl_float3 scale=(cl_float3){1.5f, 0.28284f*3, 1.5f};
-    cl_float3 scale=(cl_float3){1.5f, 0.28284f*0.28284f, 1.5f};
+    //cl_float3 scale=(cl_float3){1.5f, 0.28284f*0.28284f, 1.5f};
     //felül
+    
+    cl_float3 move=(cl_float3){-100.0f, 0.001f, 900};
+    cl_float3 scale=(cl_float3){0.5f, 0.28284f*0.28284f/40*20, 0.5f};
+    for(int szar2=0;szar2<12;++szar2)
+    for(int szar=0;szar<12;++szar){
+        move=(cl_float3){-50.0f+szar*100, 0.001f, 900-szar2*100};
     scene.add_Triangle(Triangle((cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], -100.0f*scale.s[2]+move.s[2]}, (cl_float3){100.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 0.0f*scale.s[2]+move.s[2]}, (cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 100.0f*scale.s[2]+move.s[2]}, GOLD));
     scene.add_Triangle(Triangle((cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], -100.0f*scale.s[2]+move.s[2]}, (cl_float3){-100.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 0.0f*scale.s[2]+move.s[2]}, (cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 100.0f*scale.s[2]+move.s[2]}, GOLD));
     //alul
@@ -666,7 +674,7 @@ void onInitialization( ) {
     //bal felül
     scene.add_Triangle(Triangle((cl_float3){-100.0f*scale.s[0]+move.s[0], 0.0f*scale.s[1]+move.s[1], 0.0f*scale.s[2]+move.s[2]}, (cl_float3){0.0f*scale.s[0]+move.s[0], 0.0f*scale.s[1]+move.s[1], 100.0f*scale.s[2]+move.s[2]}, (cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 100.0f*scale.s[2]+move.s[2]}, GOLD));
     scene.add_Triangle(Triangle((cl_float3){-100.0f*scale.s[0]+move.s[0], 0.0f*scale.s[1]+move.s[1], 0.0f*scale.s[2]+move.s[2]}, (cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 100.0f*scale.s[2]+move.s[2]}, (cl_float3){-100.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 0.0f*scale.s[2]+move.s[2]}, GOLD));
-    
+    }
 
     //üveg hasáb
     float movx=300-200;
@@ -766,19 +774,19 @@ void onKeyboardUp(unsigned char key, int x, int y) {
     switch(key) {
         case 'w': case 'W':
             keys_down[W] = false;
-            current_sample=0;
+            //current_sample=0;
         break;
         case 's': case 'S':
             keys_down[S] = false;
-            current_sample=0;
+            //current_sample=0;
         break;
         case 'a': case 'A':
             keys_down[A] = false;
-            current_sample=0;
+            //current_sample=0;
         break;
         case 'd': case 'D':
             keys_down[D] = false;
-            current_sample=0;
+            //current_sample=0;
         break;
     }
 }
@@ -790,12 +798,10 @@ void onMouse(int button, int state, int x, int y) {
     last_y = y;
     if ((button == GLUT_LEFT_BUTTON ) && (state == GLUT_DOWN)){
         mouse_down=true;
-        current_sample=0;
     }
 
     if ((button == GLUT_LEFT_BUTTON ) && (state == GLUT_UP)){
         mouse_down=false;
-        current_sample=0;
     }
 }
  
