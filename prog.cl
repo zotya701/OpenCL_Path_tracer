@@ -299,6 +299,9 @@ void kernel trace_ray(write_only image2d_t tex,
 
         if(hit.t>0){
             hit.mat=materials[hit.mati];
+            if(iterations==1){
+                color=hit.mat.kd+hit.mat.emission;
+            }
             if(dot(rays[id].D,hit.N)>0){                                                                                                            // hence the angle between D and N will always be less than 90 degree
                 hit.N=-hit.N;
             }
