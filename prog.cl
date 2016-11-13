@@ -233,27 +233,27 @@ Hit kd_intersect(global const Triangle* tris, global const Node* kd_tree, const 
     while(!empty && !fail && !found){
         if(ptr<kd_tree_size){
             if(BBox_intersection(&kd_tree[ptr].bbox, &ray, &dist)){
-                /*
-                if(dist>tmin){
+                
+                if(dist>tmin){  // check if bbox closer than the best hit, becouse if it's not, it's impossible for tha bbox to have a triangle closer what we already have
                     if(stack_ptr==0){
                         empty=true;
                     }else{
                         ptr=stack_pop(stack, &stack_ptr);
                     }
                 }else 
-                */
-                if(kd_tree[ptr].trii.x<0){
+                
+                if(kd_tree[ptr].trii.x<0){  // check if not leaf
                     stack_push(stack, &stack_ptr, 2*ptr+1);
                     ptr=2*ptr;
-                }else{
-                    hit=first_intersect(tris, kd_tree[ptr].trii.x, kd_tree[ptr].trii.y, ray);
-                    tmin=hit.t;
-                    if(hit.t>0 && (best_hit.t<0 || hit.t<best_hit.t)){
+                }else{  // if leaf, it will contain triangles
+                    hit=first_intersect(tris, kd_tree[ptr].trii.x, kd_tree[ptr].trii.y, ray);   // x and y is from and to indexes, and tris is an orderes array of triangles
+                    if(hit.t>0 && (best_hit.t<0 || hit.t<best_hit.t)){ // keep track of the best hit
+                        tmin=hit.t;
                         best_hit=hit;
                     }
                     if(stack_ptr==0){
                         empty=true;
-                    }else{
+                    }else{  // check other nodes
                         ptr=stack_pop(stack, &stack_ptr);
                     }
                 }
