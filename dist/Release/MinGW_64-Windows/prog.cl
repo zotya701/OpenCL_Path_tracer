@@ -18,26 +18,26 @@ typedef struct{
     float3 P,D;
 } Ray;
 
-bool BBox_intersection(global const BBox* box, global Ray* ray, float* tmin, float* tmax){
+bool BBox_intersection(global const BBox* box, Ray* ray, float* tmin){
     float tx1=(box->bl.x-ray->P.x)*native_recip(ray->D.x);
     float tx2=(box->tr.x-ray->P.x)*native_recip(ray->D.x);
 
     *tmin=fmin(tx1,tx2);
-    *tmax=fmax(tx1,tx2);
+    float tmax=fmax(tx1,tx2);
 
     float ty1=(box->bl.y-ray->P.y)*native_recip(ray->D.y);
     float ty2=(box->tr.y-ray->P.y)*native_recip(ray->D.y);
 
     *tmin=fmax(*tmin, fmin(ty1,ty2));
-    *tmax=fmin(*tmax, fmax(ty1,ty2));
+    tmax=fmin(tmax, fmax(ty1,ty2));
 
     float tz1=(box->bl.z-ray->P.z)*native_recip(ray->D.z);
     float tz2=(box->tr.z-ray->P.z)*native_recip(ray->D.z);
 
     *tmin=fmax(*tmin, fmin(tz1, tz2));
-    *tmax=fmin(*tmax, fmax(tz1, tz2));
+    tmax=fmin(tmax, fmax(tz1, tz2));
 
-    return tmax>=tmin;
+    return tmax>=*tmin;
 }
 
 typedef struct{
@@ -204,86 +204,69 @@ float4 filmic_tone(float3 c){
     return (float4)(c.x, c.y, c.z, 1.0f);
 }
 
-
-
-void search_node(global const Triangle* tris, global const Node* kd_tree, const int kd_tree_size, int ptr, global Ray* ray, float* tmin, float* tmax, float* gmin, float* gmax, Hit* hit, int depth);
-void search_split(global const Triangle* tris, global const Node* kd_tree, const int kd_tree_size, int ptr, global Ray* ray, float* tmin, float* tmax, float* gmin, float* gmax, Hit* hit, int depth);
-void search_leaf(global const Triangle* tris, global const Node* kd_tree, const int kd_tree_size, int ptr, global Ray* ray, float* tmin, float* tmax, float* gmin, float* gmax, Hit* hit, int depth);
-void continue_search(global const Triangle* tris, global const Node* kd_tree, const int kd_tree_size, int ptr, global Ray* ray, float* tmin, float* tmax, float* gmin, float* gmax, Hit* hit, int depth);
-void kd_search(global const Triangle* tris, global const Node* kd_tree, const int kd_tree_size, global Ray* ray, Hit* hit){
-    float tmin,tmax,gmin,gmax;
-    if(BBox_intersection(&kd_tree[1].bbox, ray, &tmin, &tmax)){
-        gmin=tmin;
-        gmax=tmax;
-        search_node(tris, kd_tree, kd_tree_size, 1, ray, &tmin, &tmax, &gmin, &gmax, hit, 0);
+void stack_push(int* stack, int* ptr, int val){
+    if((*ptr)<300){
+        stack[*ptr]=val;
+        (*ptr)=(*ptr)+1;
     }
 }
-void search_node(global const Triangle* tris, global const Node* kd_tree, const int kd_tree_size, int ptr, global Ray* ray, float* tmin, float* tmax, float* gmin, float* gmax, Hit* hit, int depth){
-    if(ptr<kd_tree_size){
-        if(kd_tree[ptr].trii.x>=0){
-            search_leaf(tris, kd_tree, kd_tree_size, ptr, ray, tmin, tmax, gmin, gmax, hit, depth);
+int stack_pop(int* stack, int* ptr){
+    if((*ptr)>0){
+        *ptr=*ptr-1;;
+        return stack[*ptr];
+    }
+    return stack[0];
+}
+
+Hit kd_intersect(global const Triangle* tris, global const Node* kd_tree, const int kd_tree_size, const Ray ray ){
+    Hit hit=init_Hit();
+    Hit best_hit=init_Hit();
+    int ptr=1;
+    float tmin=999999;;
+    float dist=0;;
+    int stack[300];
+    int stack_ptr=0;
+    bool fail=false;
+    bool empty=false;
+
+    while(!empty && !fail){
+        if(ptr<kd_tree_size){
+            if(BBox_intersection(&kd_tree[ptr].bbox, &ray, &dist)){
+                
+                if(dist>tmin && dist>=0){  // check if bbox closer than the best hit, becouse if it's not, it's impossible for tha bbox to have a triangle closer what we already have
+                    if(stack_ptr==0){
+                        empty=true;
+                    }else{
+                        ptr=stack_pop(stack, &stack_ptr);
+                    }
+                }else 
+                
+                if(kd_tree[ptr].trii.x<0){  // check if not leaf
+                    stack_push(stack, &stack_ptr, 2*ptr+1);
+                    ptr=2*ptr;
+                }else{  // if leaf, it will contain triangles
+                    hit=first_intersect(tris, kd_tree[ptr].trii.x, kd_tree[ptr].trii.y, ray);   // x and y is from and to indexes, and tris is an orderes array of triangles
+                    if(hit.t>0 && (best_hit.t<0 || hit.t<best_hit.t)){ // keep track of the best hit
+                        tmin=hit.t;
+                        best_hit=hit;
+                    }
+                    if(stack_ptr==0){
+                        empty=true;
+                    }else{  // check other nodes
+                        ptr=stack_pop(stack, &stack_ptr);
+                    }
+                }
+            }else if(stack_ptr==0){
+                empty=true;
+            }else{
+                ptr=stack_pop(stack, &stack_ptr);
+            }
         }else{
-            search_split(tris, kd_tree, kd_tree_size, ptr, ray, tmin, tmax, gmin, gmax, hit, depth);
+            fail=true;
         }
     }
+    return best_hit;
 }
-void search_split(global const Triangle* tris, global const Node* kd_tree, const int kd_tree_size, int ptr, global Ray* ray, float* tmin, float* tmax, float* gmin, float* gmax, Hit* hit, int depth){
-    float a = depth%3;
-    float thit,tmin1,tmin2,tmax1,tmax2;
-    int first,second;
-    if(a==0){
-        thit = (kd_tree[ptr].split - ray->P.x) / ray->D.x;
-        BBox_intersection(&kd_tree[2*ptr].bbox, ray, &tmin1, &tmax1);
-        BBox_intersection(&kd_tree[2*ptr+1].bbox, ray, &tmin2, &tmax2);
-    }else if(a==1){
-        thit = (kd_tree[ptr].split - ray->P.y) / ray->D.y;
-        BBox_intersection(&kd_tree[2*ptr].bbox, ray, &tmin1, &tmax1);
-        BBox_intersection(&kd_tree[2*ptr+1].bbox, ray, &tmin2, &tmax2);
-    }else{
-        thit = (kd_tree[ptr].split - ray->P.z) / ray->D.z;
-        BBox_intersection(&kd_tree[2*ptr].bbox, ray, &tmin1, &tmax1);
-        BBox_intersection(&kd_tree[2*ptr+1].bbox, ray, &tmin2, &tmax2);
-    }
-    if(tmin1<tmin2){
-        first=2*ptr; second=2*ptr+1;
-    }else{
-        first=2*ptr+1; second=2*ptr;
-        float temp1,temp2; temp1=tmin2; temp2=tmax2;
-        tmin2=tmin1; tmax2=tmax1; tmin1=temp1; tmax1=temp2;
-    }
-
-    if( thit >= *tmax || thit < 0 ){
-        *tmin=tmin1; *tmax=tmax1;
-        //search_node(tris, kd_tree, kd_tree_size, first, ray, tmin, tmax, gmin, gmax, hit, depth+1);
-    }else if( thit <= *tmin ){
-        *tmin=tmin2; *tmax=tmax2;
-        //search_node(tris, kd_tree, kd_tree_size, second, ray, tmin, tmax, gmin, gmax, hit, depth+1);
-    }else{
-        *tmin=tmin1; *tmax=tmax1;
-        //search_node(tris, kd_tree, kd_tree_size, first, ray, tmin, tmax, gmin, gmax, hit, depth+1);
-    }
-}
-void search_leaf(global const Triangle* tris, global const Node* kd_tree, const int kd_tree_size, int ptr, global Ray* ray, float* tmin, float* tmax, float* gmin, float* gmax, Hit* hit, int depth){
-    *hit=first_intersect(tris, kd_tree[ptr].trii.x, kd_tree[ptr].trii.y, *ray);
-    if( (*hit).t>0 && (*hit).t < *tmax ){
-        //succeed( hit )
-        return;
-    }else{
-        //continue_search(tris, kd_tree, kd_tree_size, ptr, ray, tmin, tmax, gmin, gmax, hit, depth);
-    }
-}
-void continue_search(global const Triangle* tris, global const Node* kd_tree, const int kd_tree_size, int ptr, global Ray* ray, float* tmin, float* tmax, float* gmin, float* gmax, Hit* hit, int depth){
-    if(tmax == gmax){
-        //fail()
-        return;
-    }else{
-        tmin = tmax;
-        tmax = gmax;
-        search_node(tris, kd_tree, kd_tree_size, 1, ray, tmin, tmax, gmin, gmax, hit, 0);
-    }
-}
-
-
 
 void kernel trace_ray(write_only image2d_t tex,
                         global const Triangle* tris,
@@ -307,21 +290,17 @@ void kernel trace_ray(write_only image2d_t tex,
     if(current_sample==0){
         colors[id]=color;
     }
-    
-    //printf("START %d\n\r", kd_tree_size);
-    //for(int i=1;i<kd_tree_size;++i){
-    //    printf("%02d from=%02d to=%02d split=%08.3f\n\r", i, kd_tree[i].trii.x, kd_tree[i].trii.y, kd_tree[i].split);
-    //}
-    //printf("END\n\r");
-    Hit szar=init_Hit();
-    kd_search(tris, kd_tree, kd_tree_size, &rays[id], &szar);
 
     bool in=false;
     for(int current=0; current<iterations; ++current){
-        Hit hit=first_intersect(tris, 0, tris_size, rays[id]);
+        //Hit hit=first_intersect(tris, 0, tris_size, rays[id]);
+        Hit hit=kd_intersect(tris, kd_tree, kd_tree_size, rays[id]);
 
         if(hit.t>0){
             hit.mat=materials[hit.mati];
+            if(iterations==1){
+                color=hit.mat.kd+hit.mat.emission;
+            }
             if(dot(rays[id].D,hit.N)>0){                                                                                                            // hence the angle between D and N will always be less than 90 degree
                 hit.N=-hit.N;
             }

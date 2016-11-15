@@ -18,26 +18,26 @@ typedef struct{
     float3 P,D;
 } Ray;
 
-bool BBox_intersection(global const BBox* box, Ray* ray, float* tmin){
+bool BBox_intersection(global const BBox* box, Ray* ray, float* tmin, float* tmax){
     float tx1=(box->bl.x-ray->P.x)*native_recip(ray->D.x);
     float tx2=(box->tr.x-ray->P.x)*native_recip(ray->D.x);
 
     *tmin=fmin(tx1,tx2);
-    float tmax=fmax(tx1,tx2);
+    *tmax=fmax(tx1,tx2);
 
     float ty1=(box->bl.y-ray->P.y)*native_recip(ray->D.y);
     float ty2=(box->tr.y-ray->P.y)*native_recip(ray->D.y);
 
     *tmin=fmax(*tmin, fmin(ty1,ty2));
-    tmax=fmin(tmax, fmax(ty1,ty2));
+    *tmax=fmin(*tmax, fmax(ty1,ty2));
 
     float tz1=(box->bl.z-ray->P.z)*native_recip(ray->D.z);
     float tz2=(box->tr.z-ray->P.z)*native_recip(ray->D.z);
 
     *tmin=fmax(*tmin, fmin(tz1, tz2));
-    tmax=fmin(tmax, fmax(tz1, tz2));
+    *tmax=fmin(*tmax, fmax(tz1, tz2));
 
-    return tmax>=*tmin;
+    return *tmax>=*tmin;
 }
 
 typedef struct{
@@ -223,40 +223,46 @@ Hit kd_intersect(global const Triangle* tris, global const Node* kd_tree, const 
     Hit best_hit=init_Hit();
     int ptr=1;
     float tmin=999999;;
-    float dist=0;;
+    float dist=0;
+    float tmax=0;
     int stack[300];
     int stack_ptr=0;
-    bool found=false;
     bool fail=false;
     bool empty=false;
-
-    while(!empty && !fail && !found){
+//printf("START\n\r");
+    while(!empty && !fail){
         if(ptr<kd_tree_size){
-            if(BBox_intersection(&kd_tree[ptr].bbox, &ray, &dist)){
-                
-                if(dist>tmin){  // check if bbox closer than the best hit, becouse if it's not, it's impossible for tha bbox to have a triangle closer what we already have
+            if(BBox_intersection(&kd_tree[ptr].bbox, &ray, &dist, &tmax)){
+                if(tmax>=0){
+                    if(dist>tmin){  // check if bbox closer than the best hit, becouse if it's not, it's impossible for tha bbox to have a triangle closer what we already have
+                        if(stack_ptr==0){
+                            empty=true;
+                        }else{
+                            ptr=stack_pop(stack, &stack_ptr);
+                        }
+                    }else if(kd_tree[ptr].trii.x<0){  // check if not leaf
+                        stack_push(stack, &stack_ptr, 2*ptr+1);
+                        ptr=2*ptr;
+                    }else{  // if leaf, it will contain triangles
+                        hit=first_intersect(tris, kd_tree[ptr].trii.x, kd_tree[ptr].trii.y, ray);   // x and y is from and to indexes, and tris is an orderes array of triangles
+                        if(hit.t>0 && (best_hit.t<0 || hit.t<best_hit.t)){ // keep track of the best hit
+                            tmin=hit.t;
+                            best_hit=hit;
+                        }
+                        if(stack_ptr==0){
+                            empty=true;
+                        }else{  // check other nodes
+                            ptr=stack_pop(stack, &stack_ptr);
+                        }
+                    }
+                }else{
                     if(stack_ptr==0){
                         empty=true;
                     }else{
                         ptr=stack_pop(stack, &stack_ptr);
                     }
-                }else 
-                
-                if(kd_tree[ptr].trii.x<0){  // check if not leaf
-                    stack_push(stack, &stack_ptr, 2*ptr+1);
-                    ptr=2*ptr;
-                }else{  // if leaf, it will contain triangles
-                    hit=first_intersect(tris, kd_tree[ptr].trii.x, kd_tree[ptr].trii.y, ray);   // x and y is from and to indexes, and tris is an orderes array of triangles
-                    if(hit.t>0 && (best_hit.t<0 || hit.t<best_hit.t)){ // keep track of the best hit
-                        tmin=hit.t;
-                        best_hit=hit;
-                    }
-                    if(stack_ptr==0){
-                        empty=true;
-                    }else{  // check other nodes
-                        ptr=stack_pop(stack, &stack_ptr);
-                    }
                 }
+                //printf("ptr=%04d stack_ptr=%02d dist=%08.3f best_hit=%08.3f\n\r",ptr,stack_ptr,dist,best_hit.t);
             }else if(stack_ptr==0){
                 empty=true;
             }else{
@@ -266,6 +272,7 @@ Hit kd_intersect(global const Triangle* tris, global const Node* kd_tree, const 
             fail=true;
         }
     }
+//printf("END\n\r");
     return best_hit;
 }
 
