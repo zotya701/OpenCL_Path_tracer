@@ -4,6 +4,7 @@ typedef struct{
 
 typedef struct{
     int2 trii;
+    int axis;
     float split;
     BBox bbox;
 } Node;
@@ -96,7 +97,7 @@ void orthonormal_base(const float3* V1, float3* V2, float3* V3){
 
 float3 Fresnel(Hit* hit, Ray* old_ray){
     float cosa=fabs(dot(hit->N, old_ray->D));
-    return hit->mat.F0 + ((float3)(1.0f, 1.0f, 1.0f)-hit->mat.F0)*pow(1-cosa, 5);
+    return hit->mat.F0 + (1-hit->mat.F0)*pow(1-cosa, 5);
 }
 
 Ray cons_Ray(float3 p, float3 d){
@@ -177,7 +178,8 @@ void new_ray_diffuse(Hit* hit, float2 rnds, global Ray* ray){
 }
 
 Ray new_ray_specular(Hit hit, Ray old_ray){
-    float3 new_d=normalize(old_ray.D - hit.N*dot(hit.N, old_ray.D)*2.0f);
+    float cosa=dot(hit.N, old_ray.D);
+    float3 new_d=normalize(old_ray.D - hit.N*cosa*2.0f);
     return cons_Ray(hit.P+hit.N*0.001f, new_d);
 }
 
@@ -228,47 +230,42 @@ Hit kd_intersect(global const Triangle* tris, global const Node* kd_tree, const 
     float tmax=-999999;
     int stack[300];
     int stack_ptr=0;
-    bool fail=false;
     bool empty=false;
-    while(!empty && !fail){
-        if(ptr<kd_tree_size){
-            if(BBox_intersection(&kd_tree[ptr].bbox, &ray, &dist, &tmax)){
-                if(tmax>=0){
-                    if(dist>tmin){  // check if bbox closer than the best hit, becouse if it's not, it's impossible for tha bbox to have a triangle closer what we already have
-                        if(stack_ptr==0){
-                            empty=true;
-                        }else{
-                            ptr=stack_pop(stack, &stack_ptr);
-                        }
-                    }else if(kd_tree[ptr].trii.x<0){  // check if not leaf
-                        stack_push(stack, &stack_ptr, 2*ptr+1);
-                        ptr=2*ptr;
-                    }else{  // if leaf, it will contain triangles
-                        hit=first_intersect(tris, kd_tree[ptr].trii.x, kd_tree[ptr].trii.y, ray);   // x and y is from and to indexes, and tris is an orderes array of triangles
-                        if(hit.t>0 && (best_hit.t<0 || hit.t<best_hit.t)){ // keep track of the best hit
-                            tmin=hit.t;
-                            best_hit=hit;
-                        }
-                        if(stack_ptr==0){
-                            empty=true;
-                        }else{  // check other nodes
-                            ptr=stack_pop(stack, &stack_ptr);
-                        }
-                    }
-                }else{
+    while(!empty){
+        if(BBox_intersection(&kd_tree[ptr].bbox, &ray, &dist, &tmax)){
+            if(tmax>=0){
+                if(dist>tmin){  // check if bbox closer than the best hit, becouse if it's not, it's impossible for tha bbox to have a triangle closer what we already have
                     if(stack_ptr==0){
                         empty=true;
                     }else{
                         ptr=stack_pop(stack, &stack_ptr);
                     }
+                }else if(kd_tree[ptr].trii.x<0){  // check if not leaf
+                    stack_push(stack, &stack_ptr, 2*ptr+1);
+                    ptr=2*ptr;
+                }else{  // if leaf, it will contain triangles
+                    hit=first_intersect(tris, kd_tree[ptr].trii.x, kd_tree[ptr].trii.y, ray);   // x and y is from and to indexes, and tris is an orderes array of triangles
+                    if(hit.t>0 && (best_hit.t<0 || hit.t<best_hit.t)){ // keep track of the best hit
+                        tmin=hit.t;
+                        best_hit=hit;
+                    }
+                    if(stack_ptr==0){
+                        empty=true;
+                    }else{  // check other nodes
+                        ptr=stack_pop(stack, &stack_ptr);
+                    }
                 }
-            }else if(stack_ptr==0){
-                empty=true;
             }else{
-                ptr=stack_pop(stack, &stack_ptr);
+                if(stack_ptr==0){
+                    empty=true;
+                }else{
+                    ptr=stack_pop(stack, &stack_ptr);
+                }
             }
+        }else if(stack_ptr==0){
+            empty=true;
         }else{
-            fail=true;
+            ptr=stack_pop(stack, &stack_ptr);
         }
     }
     return best_hit;
@@ -350,6 +347,7 @@ void kernel trace_ray(write_only image2d_t tex,
     colors[id]=(colors[id]*current_sample + color)/(current_sample+1);
     write_imagef(tex, (int2)(get_global_id(0), get_global_id(1)), filmic_tone(colors[id]));
 }
+
 
 void kernel gen_ray(global Ray* rays,
                     const Camera camera,
