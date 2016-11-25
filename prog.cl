@@ -221,51 +221,54 @@ int stack_pop(int* stack, int* ptr){
     return stack[0];
 }
 
-Hit kd_intersect(global const Triangle* tris, global const Node* kd_tree, const int kd_tree_size, const Ray ray ){
+Hit kd_intersect(global const Triangle* tris, global const Node* kd_tree, global const int* kd_tree_shift, const int kd_tree_shift_size, const Ray ray ){
     Hit hit=init_Hit();
     Hit best_hit=init_Hit();
-    int ptr=1;
-    float tmin=999999;;
-    float dist=0;
-    float tmax=-999999;
-    int stack[300];
-    int stack_ptr=0;
-    bool empty=false;
-    while(!empty){
-        if(BBox_intersection(&kd_tree[ptr].bbox, &ray, &dist, &tmax)){
-            if(tmax>=0){
-                if(dist>tmin){  // check if bbox closer than the best hit, becouse if it's not, it's impossible for tha bbox to have a triangle closer what we already have
+    
+    for(int i=0;i<kd_tree_shift_size;++i){
+        int ptr=1+kd_tree_shift[i];
+        float tmin=999999;;
+        float dist=0;
+        float tmax=-999999;
+        int stack[300];
+        int stack_ptr=0;
+        bool empty=false;
+        while(!empty){
+            if(BBox_intersection(&kd_tree[ptr].bbox, &ray, &dist, &tmax)){
+                if(tmax>=0){
+                    if(dist>tmin){  // check if bbox closer than the best hit, becouse if it's not, it's impossible for tha bbox to have a triangle closer what we already have
+                        if(stack_ptr==0){
+                            empty=true;
+                        }else{
+                            ptr=stack_pop(stack, &stack_ptr);
+                        }
+                    }else if(kd_tree[ptr].trii.x<0){  // check if not leaf
+                        stack_push(stack, &stack_ptr, 2*(ptr-kd_tree_shift[i])+1+kd_tree_shift[i]);
+                        ptr=2*(ptr-kd_tree_shift[i])+kd_tree_shift[i];
+                    }else{  // if leaf, it will contain triangles
+                        hit=first_intersect(tris, kd_tree[ptr].trii.x, kd_tree[ptr].trii.y, ray);   // x and y is from and to indexes, and tris is an orderes array of triangles
+                        if(hit.t>0 && (best_hit.t<0 || hit.t<best_hit.t)){ // keep track of the best hit
+                            tmin=hit.t;
+                            best_hit=hit;
+                        }
+                        if(stack_ptr==0){
+                            empty=true;
+                        }else{  // check other nodes
+                            ptr=stack_pop(stack, &stack_ptr);
+                        }
+                    }
+                }else{
                     if(stack_ptr==0){
                         empty=true;
                     }else{
                         ptr=stack_pop(stack, &stack_ptr);
                     }
-                }else if(kd_tree[ptr].trii.x<0){  // check if not leaf
-                    stack_push(stack, &stack_ptr, 2*ptr+1);
-                    ptr=2*ptr;
-                }else{  // if leaf, it will contain triangles
-                    hit=first_intersect(tris, kd_tree[ptr].trii.x, kd_tree[ptr].trii.y, ray);   // x and y is from and to indexes, and tris is an orderes array of triangles
-                    if(hit.t>0 && (best_hit.t<0 || hit.t<best_hit.t)){ // keep track of the best hit
-                        tmin=hit.t;
-                        best_hit=hit;
-                    }
-                    if(stack_ptr==0){
-                        empty=true;
-                    }else{  // check other nodes
-                        ptr=stack_pop(stack, &stack_ptr);
-                    }
                 }
+            }else if(stack_ptr==0){
+                empty=true;
             }else{
-                if(stack_ptr==0){
-                    empty=true;
-                }else{
-                    ptr=stack_pop(stack, &stack_ptr);
-                }
+                ptr=stack_pop(stack, &stack_ptr);
             }
-        }else if(stack_ptr==0){
-            empty=true;
-        }else{
-            ptr=stack_pop(stack, &stack_ptr);
         }
     }
     return best_hit;
@@ -276,7 +279,8 @@ void kernel trace_ray(write_only image2d_t tex,
                         const int tris_size,
                         global const Material* materials,
                         global const Node* kd_tree,
-                        const int kd_tree_size,
+                        global const int* kd_tree_shift,
+                        const int kd_tree_shift_size,
                         global Ray* rays,
                         global float2* rnds,
                         const int iterations,
@@ -298,7 +302,7 @@ void kernel trace_ray(write_only image2d_t tex,
     bool in=false;
     for(int current=0; current<iterations; ++current){
         //Hit hit=first_intersect(tris, 0, tris_size, rays[id]);
-        Hit hit=kd_intersect(tris, kd_tree, kd_tree_size, rays[id]);
+        Hit hit=kd_intersect(tris, kd_tree, kd_tree_shift, kd_tree_shift_size, rays[id]);
 
         if(hit.t>0){
             hit.mat=materials[hit.mati];
