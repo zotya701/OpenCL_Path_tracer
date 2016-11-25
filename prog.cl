@@ -183,16 +183,19 @@ Ray new_ray_specular(Hit hit, Ray old_ray){
     return cons_Ray(hit.P+hit.N*0.001f, new_d);
 }
 
-Ray new_ray_refractive(Hit hit, Ray old_ray, bool in, float rnd){
-    if(in){
+Ray new_ray_refractive(Hit hit, Ray old_ray, bool* in, float rnd){
+    if(*in){
         hit.mat.n=1.0f/hit.mat.n;
     }
     hit.mat.n=1.0f/hit.mat.n;
-    float cosa=-dot(old_ray.D, hit.N);
+    float cosa=dot(-old_ray.D, hit.N);
     float disc=1.0f - (1.0f - cosa*cosa)*hit.mat.n*hit.mat.n;
-    float3 F=hit.mat.F0 + ((float3)(1.0f, 1.0f, 1.0f) - hit.mat.F0)*pow(1-cosa, 5);
+    //float3 F=hit.mat.F0 + ((float3)(1.0f, 1.0f, 1.0f) - hit.mat.F0)*pow(1-cosa, 5);
+    float3 F=Fresnel(&hit, &old_ray);
     float prob=(F.x+F.y+F.z)/3.0f;
+    //printf("%f\n\r",prob);
     if(disc>0 && rnd>prob){
+        (*in)=!(*in);
         return cons_Ray(hit.P - hit.N*0.001f, normalize(old_ray.D*hit.mat.n + hit.N*(cosa*hit.mat.n - sqrt(disc))));
     }else{
         return cons_Ray(hit.P + hit.N*0.001f, normalize(old_ray.D + hit.N*cosa*2.0f));
@@ -301,8 +304,8 @@ void kernel trace_ray(write_only image2d_t tex,
 
     bool in=false;
     for(int current=0; current<iterations; ++current){
-        //Hit hit=first_intersect(tris, 0, tris_size, rays[id]);
-        Hit hit=kd_intersect(tris, kd_tree, kd_tree_shift, kd_tree_shift_size, rays[id]);
+        Hit hit=first_intersect(tris, 0, tris_size, rays[id]);
+        //Hit hit=kd_intersect(tris, kd_tree, kd_tree_shift, kd_tree_shift_size, rays[id]);
 
         if(hit.t>0){
             hit.mat=materials[hit.mati];
@@ -334,9 +337,7 @@ void kernel trace_ray(write_only image2d_t tex,
             if(hit.mat.type==2){                                                                                    // refractive
                 Ray old_ray=rays[id];
                 rand(&rnds[id]);
-                rays[id]=new_ray_refractive(hit, old_ray, in, rnds[id].x);
-                factor_R=factor_R*(1-Fresnel(&hit, &old_ray));
-                in=!in;
+                rays[id]=new_ray_refractive(hit, old_ray, &in, rnds[id].x);
             }
             if(hit.mat.type==3){                                                                                    // emitter
                 rand(&rnds[id]);
