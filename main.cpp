@@ -25,17 +25,18 @@ const int max_iterations=15;
 int iterations=1;
 int current_sample=0;
 int old_sample=0;
-float global_yaw=0;
-float global_pitch=0;
+float global_yaw=-13.800002;
+float global_pitch=5.599997;
 float global_forward=0;
 float global_rightward=0;
-cl_float3 global_shift=(cl_float3){0.0f, 0.0f, 0.0f};
+cl_float3 global_shift=(cl_float3){265.055481, 162.305969, 360.414001};
 enum ControllKeys {W, A, S, D, keys_num};
 bool keys_down[keys_num];
 bool real_time=true;
 
-std::default_random_engine generator;
-std::uniform_real_distribution<double> distribution(0.0f,1.0f);
+//std::minstd_rand0 generator;
+//std::uniform_int_distribution<int> distribution(1,2147483646);
+//#define RND distribution(generator);
 
 cl_float3 rotate_z(cl_float3 v, float alpha){
     alpha=alpha/180.0f*3.141593f;
@@ -314,7 +315,7 @@ private:
     cl_float XM, YM;
 public:
     Camera(){
-        float fov=60;
+        float fov=75;
         float yaw=0.0f+global_yaw;
         float pitch=0.0f+global_pitch;
         float roll=0.0f;
@@ -503,7 +504,7 @@ public:
         queue=cl::CommandQueue(context,default_device);
         
         buffer_rays=cl::Buffer(context,CL_MEM_READ_WRITE,sizeof(Ray)*rays_size);
-        buffer_rnds=cl::Buffer(context,CL_MEM_READ_WRITE,sizeof(cl_float2)*rays_size*max_iterations);
+        buffer_rnds=cl::Buffer(context,CL_MEM_READ_WRITE,sizeof(cl_int)*rays_size);
         
         // create the texture which we will use in kernel
         glEnable(GL_TEXTURE_2D);
@@ -516,13 +517,11 @@ public:
         cl_screen=clCreateFromGLTexture(context(), CL_MEM_WRITE_ONLY, GL_TEXTURE_2D, 0, texture, NULL);
         buffer_colors=cl::Buffer(context,CL_MEM_READ_WRITE ,sizeof(cl_float3)*rays_size);
         
-        // init the random numbers from cpu, later the gpu generates it
-        cl_float2* RNDS=new cl_float2[rays_size*max_iterations];
+        cl_int* RNDS=new cl_int[rays_size];
         for(int i=0;i<rays_size;++i){
-            RNDS[i].s[0]=distribution(generator);
-            RNDS[i].s[1]=distribution(generator);
+            RNDS[i]=i+1;
         }
-        queue.enqueueWriteBuffer(buffer_rnds,CL_TRUE,0,sizeof(cl_float2)*rays_size,&RNDS[0]);
+        queue.enqueueWriteBuffer(buffer_rnds,CL_TRUE,0,sizeof(cl_int)*rays_size,&RNDS[0]);
         delete[] RNDS;
         
         camera=Camera();
@@ -551,14 +550,6 @@ public:
         tri_shift=tris.size();
     }
     void upload_Triangles(){
-        //KDNode* root=new KDNode();
-        //root=root->build(tris,0);
-        //kd_tree.clear();
-        //tris.clear();
-        //printf("%d %d\n\r",kd_tree.size(), tris.size());
-        //root->convert(root, kd_tree, tris);
-        //printf("%d %d\n\r",kd_tree.size(), tris.size());
-        
         buffer_kd_tree=cl::Buffer(context,CL_MEM_READ_ONLY,sizeof(Node)*kd_tree.size());
         queue.enqueueWriteBuffer(buffer_kd_tree,CL_TRUE,0,sizeof(Node)*kd_tree.size(),&kd_tree[0]);
         
@@ -615,45 +606,45 @@ public:
         queue.finish();
         clEnqueueReleaseGLObjects(queue(), 1, &cl_screen(), 0, NULL, NULL);
     }
-    void uniform_test(){
-        cl_float2* RNDS=new cl_float2[rays_size*max_iterations];
-        queue.enqueueReadBuffer(buffer_rnds,CL_TRUE,0,sizeof(cl_float2)*rays_size,RNDS);
-        int parts[10];
-        for(int i=0;i<10;++i)
-            parts[i]=0;
-        for(int i=0;i<rays_size;++i){
-            for(int j=0;j<2;++j){
-                if(RNDS[i].s[j]>0.9)
-                    parts[9]++;
-                else if(RNDS[i].s[j]>0.8)
-                    parts[8]++;
-                else if(RNDS[i].s[j]>0.7)
-                    parts[7]++;
-                else if(RNDS[i].s[j]>0.6)
-                    parts[6]++;
-                else if(RNDS[i].s[j]>0.5)
-                    parts[5]++;
-                else if(RNDS[i].s[j]>0.4)
-                    parts[4]++;
-                else if(RNDS[i].s[j]>0.3)
-                    parts[3]++;
-                else if(RNDS[i].s[j]>0.2)
-                    parts[2]++;
-                else if(RNDS[i].s[j]>0.1)
-                    parts[1]++;
-                else
-                    parts[0]++;
-            }
-        }
-        delete[] RNDS;
-        float sum=0;
-        for(int i=0;i<10;++i){
-            float percent=(float)parts[i]/(rays_size*2)*100;
-            sum+=percent;
-            printf("Quantity in range: 0.%d-%d.%d = %07.4f%\n\r", i, (i+1)/10, (i+1)%10, percent);
-        }
-        printf("%.4f\n\r",sum);
-    }
+//    void uniform_test(){
+//        cl_float2* RNDS=new cl_float2[rays_size];
+//        queue.enqueueReadBuffer(buffer_rnds,CL_TRUE,0,sizeof(cl_float2)*rays_size,RNDS);
+//        int parts[10];
+//        for(int i=0;i<10;++i)
+//            parts[i]=0;
+//        for(int i=0;i<rays_size;++i){
+//            for(int j=0;j<2;++j){
+//                if(RNDS[i].s[j]>0.9)
+//                    parts[9]++;
+//                else if(RNDS[i].s[j]>0.8)
+//                    parts[8]++;
+//                else if(RNDS[i].s[j]>0.7)
+//                    parts[7]++;
+//                else if(RNDS[i].s[j]>0.6)
+//                    parts[6]++;
+//                else if(RNDS[i].s[j]>0.5)
+//                    parts[5]++;
+//                else if(RNDS[i].s[j]>0.4)
+//                    parts[4]++;
+//                else if(RNDS[i].s[j]>0.3)
+//                    parts[3]++;
+//                else if(RNDS[i].s[j]>0.2)
+//                    parts[2]++;
+//                else if(RNDS[i].s[j]>0.1)
+//                    parts[1]++;
+//                else
+//                    parts[0]++;
+//            }
+//        }
+//        delete[] RNDS;
+//        float sum=0;
+//        for(int i=0;i<10;++i){
+//            float percent=(float)parts[i]/(rays_size*2)*100;
+//            sum+=percent;
+//            printf("Quantity in range: 0.%d-%d.%d = %07.4f%\n\r", i, (i+1)/10, (i+1)%10, percent);
+//        }
+//        printf("%.4f\n\r",sum);
+//    }
 //    void download_image(){
 //        //queue.enqueueReadBuffer(buffer_colors,CL_TRUE,0,sizeof(cl_float3)*rays_size,cl_float3_image);
 //        
@@ -678,22 +669,17 @@ void onInitialization( ) {
 
     scene.init_Scene();
 
-    unsigned short LAMP, WHITE_DIFFUSE, RED_DIFFUSE, GREEN_DIFFUSE, BLACK_DIFFUSE, CHROMIUM, GLASS, GOLD;
+    unsigned short LAMP, SUN, WHITE_DIFFUSE, RED_DIFFUSE, GREEN_DIFFUSE, BLACK_DIFFUSE, CHROMIUM, GLASS, GOLD;
     //                                                           diffuse_color                  specular_color                     emission                      refractive_index              extinction_coefficient        shininess       type
     LAMP=0;             scene.add_Material(Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){60.0f*2, 50.0f*2, 40.0f*2}, (cl_float3){0.00f, 0.00f, 0.00f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){  0}, (cl_int){3}));
-    WHITE_DIFFUSE=1;    scene.add_Material(Material((cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){0.00f, 0.00f, 0.00f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){ 50}, (cl_int){0}));
-    RED_DIFFUSE=2;      scene.add_Material(Material((cl_float3){0.3f, 0.1f, 0.1f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){0.00f, 0.00f, 0.00f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){ 50}, (cl_int){0}));
-    GREEN_DIFFUSE=3;    scene.add_Material(Material((cl_float3){0.1f, 0.3f, 0.1f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){0.00f, 0.00f, 0.00f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){ 50}, (cl_int){0}));
-    BLACK_DIFFUSE=4;    scene.add_Material(Material((cl_float3){0.0f, 0.1f, 0.1f}, (cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){0.00f, 0.00f, 0.00f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){100}, (cl_int){0}));
-    CHROMIUM=5;         scene.add_Material(Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){3.10f, 3.05f, 2.05f}, (cl_float3){3.3f, 3.3f, 2.9f}, (cl_float){  0}, (cl_int){1}));
-    GLASS=6;            scene.add_Material(Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){1.90f, 1.90f, 1.90f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){  0}, (cl_int){2}));
+    SUN=1;              scene.add_Material(Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){60.0f*10, 50.0f*10, 40.0f*10}, (cl_float3){0.00f, 0.00f, 0.00f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){  0}, (cl_int){3}));
+    WHITE_DIFFUSE=2;    scene.add_Material(Material((cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){0.00f, 0.00f, 0.00f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){ 50}, (cl_int){0}));
+    RED_DIFFUSE=3;      scene.add_Material(Material((cl_float3){0.3f, 0.1f, 0.1f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){0.00f, 0.00f, 0.00f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){ 50}, (cl_int){0}));
+    GREEN_DIFFUSE=4;    scene.add_Material(Material((cl_float3){0.1f, 0.3f, 0.1f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){0.00f, 0.00f, 0.00f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){ 50}, (cl_int){0}));
+    BLACK_DIFFUSE=5;    scene.add_Material(Material((cl_float3){0.0f, 0.1f, 0.1f}, (cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){0.00f, 0.00f, 0.00f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){100}, (cl_int){0}));
+    CHROMIUM=6;         scene.add_Material(Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){3.10f, 3.05f, 2.05f}, (cl_float3){3.3f, 3.3f, 2.9f}, (cl_float){  0}, (cl_int){1}));
     GOLD=7;             scene.add_Material(Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){0.17f, 0.35f, 1.50f}, (cl_float3){3.1f, 2.7f, 1.9f}, (cl_float){  0}, (cl_int){1}));
-    BLACK_DIFFUSE=4;    scene.add_Material(Material((cl_float3){0.0f, 0.1f, 0.1f}, (cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){0.00f, 0.00f, 0.00f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){20}, (cl_int){0}));
-    BLACK_DIFFUSE=4;    scene.add_Material(Material((cl_float3){0.0f, 0.1f, 0.1f}, (cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){0.00f, 0.00f, 0.00f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){40}, (cl_int){0}));
-    BLACK_DIFFUSE=4;    scene.add_Material(Material((cl_float3){0.0f, 0.1f, 0.1f}, (cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){0.00f, 0.00f, 0.00f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){60}, (cl_int){0}));
-    BLACK_DIFFUSE=4;    scene.add_Material(Material((cl_float3){0.0f, 0.1f, 0.1f}, (cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){0.00f, 0.00f, 0.00f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){80}, (cl_int){0}));
-    BLACK_DIFFUSE=4;    scene.add_Material(Material((cl_float3){0.0f, 0.1f, 0.1f}, (cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){0.00f, 0.00f, 0.00f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){100}, (cl_int){0}));
-    BLACK_DIFFUSE=4;    scene.add_Material(Material((cl_float3){0.0f, 0.1f, 0.1f}, (cl_float3){0.3f, 0.3f, 0.3f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){0.00f, 0.00f, 0.00f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){120}, (cl_int){0}));
+    GLASS=8;            scene.add_Material(Material((cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float3){ 0.0f,  0.0f,  0.0f}, (cl_float3){1.50f, 1.50f, 1.50f}, (cl_float3){0.0f, 0.0f, 0.0f}, (cl_float){  0}, (cl_int){2}));
     
     //lámpa
     scene.add_Triangle(Triangle((cl_float3){300.0f, 999.9f, 700.0f}, (cl_float3){300.0f, 999.9f, 300.0f}, (cl_float3){700.0f, 999.9f, 700.0f}, LAMP));
@@ -706,14 +692,14 @@ void onInitialization( ) {
 //        asd=asd+220.00f;
 //    }
     
-//    scene.add_Triangle(Triangle((cl_float3){-100.0f, 999.9f, 700.0f}, (cl_float3){-100.0f, 999.9f, 1000.0f}, (cl_float3){200.0f, 999.9f, 700.0f}, LAMP));
-//    scene.add_Triangle(Triangle((cl_float3){200.0f, 999.9f, 700.0f}, (cl_float3){-100.0f, 999.9f, 1000.0f}, (cl_float3){200.0f, 999.9f, 1000.0f}, LAMP));
-//    scene.add_Triangle(Triangle((cl_float3){-100.0f+900, 999.9f, 700.0f}, (cl_float3){-100.0f+900, 999.9f, 1000.0f}, (cl_float3){200.0f+900, 999.9f, 700.0f}, LAMP));
-//    scene.add_Triangle(Triangle((cl_float3){200.0f+900, 999.9f, 700.0f}, (cl_float3){-100.0f+900, 999.9f, 1000.0f}, (cl_float3){200.0f+900, 999.9f, 1000.0f}, LAMP));
-//    scene.add_Triangle(Triangle((cl_float3){-100.0f, 999.9f, 700.0f-700}, (cl_float3){-100.0f, 999.9f, 1000.0f-700}, (cl_float3){200.0f, 999.9f, 700.0f-700}, LAMP));
-//    scene.add_Triangle(Triangle((cl_float3){200.0f, 999.9f, 700.0f-700}, (cl_float3){-100.0f, 999.9f, 1000.0f-700}, (cl_float3){200.0f, 999.9f, 1000.0f-700}, LAMP));
-//    scene.add_Triangle(Triangle((cl_float3){-100.0f+900, 999.9f, 700.0f-700}, (cl_float3){-100.0f+900, 999.9f, 1000.0f-700}, (cl_float3){200.0f+900, 999.9f, 700.0f-700}, LAMP));
-//    scene.add_Triangle(Triangle((cl_float3){200.0f+900, 999.9f, 700.0f-700}, (cl_float3){-100.0f+900, 999.9f, 1000.0f-700}, (cl_float3){200.0f+900, 999.9f, 1000.0f-700}, LAMP));
+//    scene.add_Triangle(Triangle((cl_float3){-50.0f, 999.9f, 750.0f}, (cl_float3){-50.0f, 999.9f, 950.0f}, (cl_float3){150.0f, 999.9f, 750.0f}, LAMP));
+//    scene.add_Triangle(Triangle((cl_float3){150.0f, 999.9f, 750.0f}, (cl_float3){-50.0f, 999.9f, 950.0f}, (cl_float3){150.0f, 999.9f, 950.0f}, LAMP));
+//    scene.add_Triangle(Triangle((cl_float3){-50.0f+900, 999.9f, 750.0f}, (cl_float3){-50.0f+900, 999.9f, 950.0f}, (cl_float3){150.0f+900, 999.9f, 750.0f}, LAMP));
+//    scene.add_Triangle(Triangle((cl_float3){150.0f+900, 999.9f, 750.0f}, (cl_float3){-50.0f+900, 999.9f, 950.0f}, (cl_float3){150.0f+900, 999.9f, 950.0f}, LAMP));
+//    scene.add_Triangle(Triangle((cl_float3){-50.0f, 999.9f, 750.0f-700}, (cl_float3){-50.0f, 999.9f, 950.0f-700}, (cl_float3){150.0f, 999.9f, 750.0f-700}, LAMP));
+//    scene.add_Triangle(Triangle((cl_float3){150.0f, 999.9f, 750.0f-700}, (cl_float3){-50.0f, 999.9f, 950.0f-700}, (cl_float3){150.0f, 999.9f, 950.0f-700}, LAMP));
+//    scene.add_Triangle(Triangle((cl_float3){-50.0f+900, 999.9f, 750.0f-700}, (cl_float3){-50.0f+900, 999.9f, 950.0f-700}, (cl_float3){150.0f+900, 999.9f, 750.0f-700}, LAMP));
+//    scene.add_Triangle(Triangle((cl_float3){150.0f+900, 999.9f, 750.0f-700}, (cl_float3){-50.0f+900, 999.9f, 950.0f-700}, (cl_float3){150.0f+900, 999.9f, 950.0f-700}, LAMP));
     
 //    scene.add_Triangle(Triangle((cl_float3){-99.999f, 750.0f, 750.0f}, (cl_float3){-99.999f, 950.0f, 750.0f}, (cl_float3){-99.999f, 750.0f, 950.0f}, LAMP));
 //    scene.add_Triangle(Triangle((cl_float3){-99.999f, 750.0f, 950.0f}, (cl_float3){-99.999f, 950.0f, 750.0f}, (cl_float3){-99.999f, 950.0f, 950.0f}, LAMP));
@@ -731,39 +717,52 @@ void onInitialization( ) {
     //balra
     scene.add_Triangle(Triangle((cl_float3){-100.0f, 0.0f, 1000.0f}, (cl_float3){-100.0f, 0.0f, -1000.0f}, (cl_float3){-100.0f, 1000.0f, 1000.0f}, RED_DIFFUSE));
     scene.add_Triangle(Triangle((cl_float3){-100.0f, 1000.0f, 1000.0f}, (cl_float3){-100.0f, 0.0f, -1000.0f}, (cl_float3){-100.0f, 1000.0f, -1000.0f}, RED_DIFFUSE));
-    scene.start_New_Obj();
+    
     //jobbra
     scene.add_Triangle(Triangle((cl_float3){1100.0f, 1000.0f, 1000.0f}, (cl_float3){1100.0f, 0.0f, -1000.0f}, (cl_float3){1100.0f, 0.0f, 1000.0f}, GREEN_DIFFUSE));
     scene.add_Triangle(Triangle((cl_float3){1100.0f, 1000.0f, -1000.0f}, (cl_float3){1100.0f, 0.0f, -1000.0f}, (cl_float3){1100.0f, 1000.0f, 1000.0f}, GREEN_DIFFUSE));
     
-    //alul
-    scene.add_Triangle(Triangle((cl_float3){-10000.0f, 0.0f, -10000.0f}, (cl_float3){-10000.0f, 0.0f, 10000.0f}, (cl_float3){10000.0f, 0.0f, 10000.0f}, WHITE_DIFFUSE));
-    scene.add_Triangle(Triangle((cl_float3){10000.0f, 0.0f, 10000.0f}, (cl_float3){10000.0f, 0.0f, -10000.0f}, (cl_float3){-10000.0f, 0.0f, -10000.0f}, WHITE_DIFFUSE));
     //felül
     scene.add_Triangle(Triangle((cl_float3){-100.0f, 1000.0f, 1000.0f}, (cl_float3){-100.0f, 1000.0f, -1000.0f}, (cl_float3){1100.0f, 1000.0f, 1000.0f}, WHITE_DIFFUSE));
     scene.add_Triangle(Triangle((cl_float3){1100.0f, 1000.0f, 1000.0f}, (cl_float3){-100.0f, 1000.0f, -1000.0f}, (cl_float3){1100.0f, 1000.0f, -1000.0f}, WHITE_DIFFUSE));
     scene.start_New_Obj();
     //hátul
-//    scene.add_Triangle(Triangle((cl_float3){-100.0f, 0.0f, -1000.0f}, (cl_float3){-100.0f, 1000.0f, -1000.0f}, (cl_float3){1100.0f, 1000.0f, -1000.0f}, WHITE_DIFFUSE));
-//    scene.add_Triangle(Triangle((cl_float3){1100.0f, 1000.0f, -1000.0f}, (cl_float3){1100.0f, 0.0f, -1000.0f}, (cl_float3){-100.0f, 0.0f, -1000.0f}, WHITE_DIFFUSE));
+//    scene.add_Triangle(Triangle((cl_float3){-100.0f-1000, 0.0f, -1000.0f-1000}, (cl_float3){-100.0f-1000, 1000.0f, -1000.0f-1000}, (cl_float3){1100.0f+1000, 1000.0f, -1000.0f-1000}, WHITE_DIFFUSE));
+//    scene.add_Triangle(Triangle((cl_float3){1100.0f+1000, 1000.0f, -1000.0f-1000}, (cl_float3){1100.0f+1000, 0.0f, -1000.0f-1000}, (cl_float3){-100.0f-1000, 0.0f, -1000.0f-1000}, WHITE_DIFFUSE));
+    
+    //alul
+    scene.add_Triangle(Triangle((cl_float3){-10000.0f, 0.0f, -10000.0f}, (cl_float3){-10000.0f, 0.0f, 10000.0f}, (cl_float3){10000.0f, 0.0f, 10000.0f}, WHITE_DIFFUSE));
+    scene.add_Triangle(Triangle((cl_float3){10000.0f, 0.0f, 10000.0f}, (cl_float3){10000.0f, 0.0f, -10000.0f}, (cl_float3){-10000.0f, 0.0f, -10000.0f}, WHITE_DIFFUSE));
+    scene.start_New_Obj();
+    
+    cl_float3 sun_pos[6];
+    sun_pos[0]=(cl_float3){-20000.0f, 300000.0f, 20000.0f}; sun_pos[1]=(cl_float3){-20000.0f, 300000.0f, -20000.0f}; sun_pos[2]=(cl_float3){20000.0f, 300000.0f, 20000.0f};
+    sun_pos[3]=(cl_float3){20000.0f, 300000.0f, 20000.0f}; sun_pos[4]=(cl_float3){-20000.0f, 300000.0f, -20000.0f}; sun_pos[5]=(cl_float3){20000.0f, 300000.0f, -20000.0f};
+    for(int i=0;i<6;++i){
+        sun_pos[i]=rotate_x(sun_pos[i], 45);
+        sun_pos[i]=rotate_y(sun_pos[i], 150);
+    }
+    scene.add_Triangle(Triangle(sun_pos[0], sun_pos[1], sun_pos[2], SUN));
+    scene.add_Triangle(Triangle(sun_pos[3], sun_pos[4], sun_pos[5], SUN));
+    scene.start_New_Obj();
 
     //arany cucc
 //    cl_float3 move=(cl_float3){750.0f, 0.001f, 300.0f};
-    cl_float3 move=(cl_float3){950.0f, 0.001f, 850.0f-700};
-//    cl_float3 move=(cl_float3){500.0f, 0.001f, 400.0f};
+    cl_float3 move=(cl_float3){950.0f, 0.001f, 850.0f-500};
+//    cl_float3 move=(cl_float3){400.0f, 100.001f, -2400.0f};
     cl_float3 scale=(cl_float3){1.5f, 0.28284f*0.28284f/40*500, 1.5f};
-//    cl_float3 scale=(cl_float3){6.0f, 0.28284f*0.28284f, 6.0f};
+//    cl_float3 scale=(cl_float3){6.0f, 0.28284f*0.28284f/40*800, 6.0f};
     //felül
     
+//    cl_float3 move=(cl_float3){50.0f+350-200, 0.000f, 850-350-1300};
+//    cl_float3 scale=(cl_float3){1.5f, 0.28284f*0.28284f/40*300, 1.5f};
 //    cl_float3 move=(cl_float3){-50.0f, 0.001f, 950};
-//    cl_float3 scale=(cl_float3){0.5f, 0.28284f*0.28284f/40*10, 0.5f};
-//    cl_float3 move=(cl_float3){-50.0f, 0.001f, 950};
-//    cl_float3 scale=(cl_float3){0.005f, 0.28284f*0.28284f/40*0.5, 0.005f};
-    for(int szar3=0;szar3<1*0;++szar3){
-        for(int szar2=0;szar2<1*1;++szar2){
-            for(int szar=0;szar<1*1;++szar){
+//    cl_float3 scale=(cl_float3){0.0125f, 0.28284f*0.28284f/40*1.25, 0.0125f};
+    for(int szar3=0;szar3<0;++szar3){
+        for(int szar2=0;szar2<1;++szar2){
+            for(int szar=0;szar<1;++szar){
 //                move=(cl_float3){-50.0f+szar*100, 100.001f+szar3*20, 950-szar2*100};
-//                move=(cl_float3){100+szar*100/50.0, 100.001f+szar3*2, 800-szar2*100/50.0};
+//                move=(cl_float3){400+szar*100/20.0, 100.001f+szar3*5, 600-szar2*100/20.0};
                 scene.add_Triangle(Triangle((cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], -100.0f*scale.s[2]+move.s[2]}, (cl_float3){100.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 0.0f*scale.s[2]+move.s[2]}, (cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 100.0f*scale.s[2]+move.s[2]}, GOLD));
                 scene.add_Triangle(Triangle((cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], -100.0f*scale.s[2]+move.s[2]}, (cl_float3){-100.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 0.0f*scale.s[2]+move.s[2]}, (cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 100.0f*scale.s[2]+move.s[2]}, GOLD));
                 //alul
@@ -786,11 +785,12 @@ void onInitialization( ) {
         }
         //scene.start_New_Obj();
     }
-    //scene.start_New_Obj();
+    scene.start_New_Obj();
     
-
-//    move=(cl_float3){400.0f, 200.0f, 600.0f};
-//    scale=(cl_float3){1.5f/200.0f*400.0f, 0.28284f*0.28284f/40*400, 1.5f/200.0f*400.0f};
+    //move=(cl_float3){400.0f, 200.0f, 600.0f};
+    //scale=(cl_float3){1.5f/200.0f*400.0f, 0.28284f*0.28284f/40*400, 1.5f/200.0f*400.0f};
+    move=(cl_float3){400.0f-200, 200.0f, 600.0f-100};
+    scale=(cl_float3){1.5f/200.0f*200.0f, 0.28284f*0.28284f/40*200, 1.5f/200.0f*200.0f};
 //    scene.add_Triangle(Triangle((cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], -100.0f*scale.s[2]+move.s[2]}, (cl_float3){100.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 0.0f*scale.s[2]+move.s[2]}, (cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 100.0f*scale.s[2]+move.s[2]}, GLASS));
 //    scene.add_Triangle(Triangle((cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], -100.0f*scale.s[2]+move.s[2]}, (cl_float3){-100.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 0.0f*scale.s[2]+move.s[2]}, (cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 100.0f*scale.s[2]+move.s[2]}, GLASS));
 //    //alul
@@ -809,8 +809,13 @@ void onInitialization( ) {
 //    scene.add_Triangle(Triangle((cl_float3){-100.0f*scale.s[0]+move.s[0], 0.0f*scale.s[1]+move.s[1], 0.0f*scale.s[2]+move.s[2]}, (cl_float3){0.0f*scale.s[0]+move.s[0], 0.0f*scale.s[1]+move.s[1], 100.0f*scale.s[2]+move.s[2]}, (cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 100.0f*scale.s[2]+move.s[2]}, GLASS));
 //    scene.add_Triangle(Triangle((cl_float3){-100.0f*scale.s[0]+move.s[0], 0.0f*scale.s[1]+move.s[1], 0.0f*scale.s[2]+move.s[2]}, (cl_float3){0.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 100.0f*scale.s[2]+move.s[2]}, (cl_float3){-100.0f*scale.s[0]+move.s[0], 500.0f*scale.s[1]+move.s[1], 0.0f*scale.s[2]+move.s[2]}, GLASS));
 //    scene.start_New_Obj();
-    
-    
+//    
+//    scene.add_Triangle(Triangle((cl_float3){800.0f, 200.0f, 300.0f}, (cl_float3){800.0f, 200.0f, 700.0f}, (cl_float3){1100.0f, 600.0f, 700.0f}, GOLD));
+//    scene.add_Triangle(Triangle((cl_float3){1100.0f, 600.0f, 300.0f}, (cl_float3){1100.0f, 600.0f, 700.0f}, (cl_float3){800.0f, 200.0f, 300.0f}, GOLD));
+//    scene.start_New_Obj();
+//    scene.add_Triangle(Triangle((cl_float3){0.0f, 800.9f, 800.0f}, (cl_float3){0.0f, 800.9f, 200.0f}, (cl_float3){600.0f, 800.9f, 800.0f}, WHITE_DIFFUSE));
+//    scene.add_Triangle(Triangle((cl_float3){600.0f, 800.9f, 800.0f}, (cl_float3){0.0f, 800.9f, 200.0f}, (cl_float3){600.0f, 800.9f, 200.0f}, WHITE_DIFFUSE));
+//    scene.start_New_Obj();
 
     //üveg hasáb
     float movx=200;
@@ -839,23 +844,20 @@ void onInitialization( ) {
 //    movx=50;
 //    movy=750;
 //    movz=850;
-    movx=400-300;
-    movy=400-100;
-    movz=600-700;
-    GLASS=BLACK_DIFFUSE;
-//    scene.add_Triangle(Triangle((cl_float3){300.0f+movx, 400.0f+movy, 300.0f+movz}, (cl_float3){300.0f+movx, 650.0f+movy, 700.0f+movz}, (cl_float3){700.0f+movx, 400.0f+movy, 300.0f+movz}, CHROMIUM));
-//    scene.add_Triangle(Triangle((cl_float3){700.0f+movx, 400.0f+movy, 300.0f+movz}, (cl_float3){300.0f+movx, 650.0f+movy, 700.0f+movz}, (cl_float3){700.0f+movx, 650.0f+movy, 700.0f+movz}, CHROMIUM));
-    scene.add_Triangle(Triangle((cl_float3){-100.0f+movx, 0.0f+movy, -100.0f+movz}, (cl_float3){-100.0f+movx, 0.0f+movy, 100.0f+movz}, (cl_float3){0.0f+movx, 150.0f+movy, 0.0f+movz}, GLASS));
-    scene.add_Triangle(Triangle((cl_float3){100.0f+movx, 0.0f+movy, -100.0f+movz}, (cl_float3){100.0f+movx, 0.0f+movy, 100.0f+movz}, (cl_float3){0.0f+movx, 150.0f+movy, 0.0f+movz}, GLASS));
-    scene.add_Triangle(Triangle((cl_float3){-100.0f+movx, 0.0f+movy, -100.0f+movz}, (cl_float3){100.0f+movx, 0.0f+movy, -100.0f+movz}, (cl_float3){0.0f+movx, 150.0f+movy, 0.0f+movz}, GLASS));
-    scene.add_Triangle(Triangle((cl_float3){-100.0f+movx, 0.0f+movy, 100.0f+movz}, (cl_float3){100.0f+movx, 0.0f+movy, 100.0f+movz}, (cl_float3){0.0f+movx, 150.0f+movy, 0.0f+movz}, GLASS));
-//    scene.add_Triangle(Triangle((cl_float3){-100.0f+movx, 0.0f+movy, -100.0f+movz}, (cl_float3){-100.0f+movx, 0.0f+movy, 100.0f+movz}, (cl_float3){100.0f+movx, 0.0f+movy, -100.0f+movz}, GLASS));
-//    scene.add_Triangle(Triangle((cl_float3){-100.0f+movx, 0.0f+movy, 100.0f+movz}, (cl_float3){100.0f+movx, 0.0f+movy, -100.0f+movz}, (cl_float3){100.0f+movx, 0.0f+movy, 100.0f+movz}, GLASS));
-    scene.add_Triangle(Triangle((cl_float3){-100.0f+movx, 0.0f+movy, -100.0f+movz}, (cl_float3){-100.0f+movx, 0.0f+movy, 100.0f+movz}, (cl_float3){0.0f+movx, -150.0f+movy, 0.0f+movz}, GLASS));
-    scene.add_Triangle(Triangle((cl_float3){100.0f+movx, 0.0f+movy, -100.0f+movz}, (cl_float3){100.0f+movx, 0.0f+movy, 100.0f+movz}, (cl_float3){0.0f+movx, -150.0f+movy, 0.0f+movz}, GLASS));
-    scene.add_Triangle(Triangle((cl_float3){-100.0f+movx, 0.0f+movy, -100.0f+movz}, (cl_float3){100.0f+movx, 0.0f+movy, -100.0f+movz}, (cl_float3){0.0f+movx, -150.0f+movy, 0.0f+movz}, GLASS));
-    scene.add_Triangle(Triangle((cl_float3){-100.0f+movx, 0.0f+movy, 100.0f+movz}, (cl_float3){100.0f+movx, 0.0f+movy, 100.0f+movz}, (cl_float3){0.0f+movx, -150.0f+movy, 0.0f+movz}, GLASS));
-    scene.start_New_Obj();
+    movx=400;
+    movy=400;
+    movz=600;
+//    GLASS=BLACK_DIFFUSE;
+//    scene.add_Triangle(Triangle((cl_float3){-100.0f+movx, 0.0f+movy, -100.0f+movz}, (cl_float3){-100.0f+movx, 0.0f+movy, 100.0f+movz}, (cl_float3){0.0f+movx, 150.0f+movy, 0.0f+movz}, GLASS));
+//    scene.add_Triangle(Triangle((cl_float3){100.0f+movx, 0.0f+movy, -100.0f+movz}, (cl_float3){100.0f+movx, 0.0f+movy, 100.0f+movz}, (cl_float3){0.0f+movx, 150.0f+movy, 0.0f+movz}, GLASS));
+//    scene.add_Triangle(Triangle((cl_float3){-100.0f+movx, 0.0f+movy, -100.0f+movz}, (cl_float3){100.0f+movx, 0.0f+movy, -100.0f+movz}, (cl_float3){0.0f+movx, 150.0f+movy, 0.0f+movz}, GLASS));
+//    scene.add_Triangle(Triangle((cl_float3){-100.0f+movx, 0.0f+movy, 100.0f+movz}, (cl_float3){100.0f+movx, 0.0f+movy, 100.0f+movz}, (cl_float3){0.0f+movx, 150.0f+movy, 0.0f+movz}, GLASS));
+//
+//    scene.add_Triangle(Triangle((cl_float3){-100.0f+movx, 0.0f+movy, -100.0f+movz}, (cl_float3){-100.0f+movx, 0.0f+movy, 100.0f+movz}, (cl_float3){0.0f+movx, -150.0f+movy, 0.0f+movz}, GLASS));
+//    scene.add_Triangle(Triangle((cl_float3){100.0f+movx, 0.0f+movy, -100.0f+movz}, (cl_float3){100.0f+movx, 0.0f+movy, 100.0f+movz}, (cl_float3){0.0f+movx, -150.0f+movy, 0.0f+movz}, GLASS));
+//    scene.add_Triangle(Triangle((cl_float3){-100.0f+movx, 0.0f+movy, -100.0f+movz}, (cl_float3){100.0f+movx, 0.0f+movy, -100.0f+movz}, (cl_float3){0.0f+movx, -150.0f+movy, 0.0f+movz}, GLASS));
+//    scene.add_Triangle(Triangle((cl_float3){-100.0f+movx, 0.0f+movy, 100.0f+movz}, (cl_float3){100.0f+movx, 0.0f+movy, 100.0f+movz}, (cl_float3){0.0f+movx, -150.0f+movy, 0.0f+movz}, GLASS));
+//    scene.start_New_Obj();
     
 //    movx=0;
 //    movy=300;
@@ -868,7 +870,6 @@ void onInitialization( ) {
     
     scene.upload_Triangles();
     scene.upload_Materials();
-//    scene.uniform_test();
 }
 
 void onDisplay( ) {
@@ -1000,10 +1001,9 @@ void onIdle( ) {
     
     int before=iterations;
     if(keys_down[W] || keys_down[A] || keys_down[S] || keys_down[D] || mouse_down){
-        iterations=1;
+        //iterations=1;
         current_sample=0;
         start=glutGet(GLUT_ELAPSED_TIME)/1000.0f;
-        //scene.download_image();
     }
     
     old = newTime;
@@ -1024,12 +1024,9 @@ void onIdle( ) {
     else
         global_rightward=0;
     
-    
     scene.generate_rays();
     scene.trace_rays();
-    //scene.uniform_test();
     if(real_time){
-        //scene.download_image();
         glutPostRedisplay();
     }
     end=clock();

@@ -4,6 +4,7 @@ typedef struct{
 
 typedef struct{
     int2 trii;
+    int axis;
     float split;
     BBox bbox;
 } Node;
@@ -96,7 +97,7 @@ void orthonormal_base(const float3* V1, float3* V2, float3* V3){
 
 float3 Fresnel(Hit* hit, Ray* old_ray){
     float cosa=fabs(dot(hit->N, old_ray->D));
-    return hit->mat.F0 + ((float3)(1.0f, 1.0f, 1.0f)-hit->mat.F0)*pow(1-cosa, 5);
+    return hit->mat.F0 + (1-hit->mat.F0)*pow(1-cosa, 5);
 }
 
 Ray cons_Ray(float3 p, float3 d){
@@ -177,23 +178,27 @@ void new_ray_diffuse(Hit* hit, float2 rnds, global Ray* ray){
 }
 
 Ray new_ray_specular(Hit hit, Ray old_ray){
-    float3 new_d=normalize(old_ray.D - hit.N*dot(hit.N, old_ray.D)*2.0f);
+    float cosa=dot(hit.N, old_ray.D);
+    float3 new_d=normalize(old_ray.D - hit.N*cosa*2.0f);
     return cons_Ray(hit.P+hit.N*0.001f, new_d);
 }
 
-Ray new_ray_refractive(Hit hit, Ray old_ray, bool in, float rnd){
-    if(in){
+Ray new_ray_refractive(Hit hit, Ray old_ray, bool* in, float rnd){
+    if(*in){
         hit.mat.n=1.0f/hit.mat.n;
     }
-    hit.mat.n=1.0f/hit.mat.n;
-    float cosa=-dot(old_ray.D, hit.N);
-    float disc=1.0f - (1.0f - cosa*cosa)*hit.mat.n*hit.mat.n;
-    float3 F=hit.mat.F0 + ((float3)(1.0f, 1.0f, 1.0f) - hit.mat.F0)*pow(1-cosa, 5);
+    float cosa=dot(-old_ray.D, hit.N);
+    float disc=1.0f - (1.0f - cosa*cosa)/hit.mat.n/hit.mat.n;
+    float3 F=Fresnel(&hit, &old_ray);
     float prob=(F.x+F.y+F.z)/3.0f;
     if(disc>0 && rnd>prob){
-        return cons_Ray(hit.P - hit.N*0.001f, normalize(old_ray.D*hit.mat.n + hit.N*(cosa*hit.mat.n - sqrt(disc))));
+        (*in)=!(*in);
+        float3 P,D;
+        P=hit.P - hit.N*0.001f;
+        D=normalize(old_ray.D/hit.mat.n + hit.N*(cosa/hit.mat.n - sqrt(disc)));
+        return cons_Ray(P, D);
     }else{
-        return cons_Ray(hit.P + hit.N*0.001f, normalize(old_ray.D + hit.N*cosa*2.0f));
+        return new_ray_specular(hit, old_ray);
     }
 }
 
@@ -218,57 +223,48 @@ int stack_pop(int* stack, int* ptr){
     }
     return stack[0];
 }
+void stack_check(int* stack, int* stack_ptr, bool* empty, int* ptr){
+    if(*stack_ptr==0){
+        *empty=true;
+    }else{  // check other nodes
+        *ptr=stack_pop(stack, stack_ptr);
+    }
+}
 
-Hit kd_intersect(global const Triangle* tris, global const Node* kd_tree, const int kd_tree_size, const Ray ray ){
+Hit kd_intersect(global const Triangle* tris, global const Node* kd_tree, global const int* kd_tree_shift, const int kd_tree_shift_size, const Ray ray ){
     Hit hit=init_Hit();
     Hit best_hit=init_Hit();
-    int ptr=1;
-    float tmin=999999;;
-    float dist=0;
-    float tmax=-999999;
-    int stack[300];
-    int stack_ptr=0;
-    bool fail=false;
-    bool empty=false;
-    while(!empty && !fail){
-        if(ptr<kd_tree_size){
+    
+    for(int i=0;i<kd_tree_shift_size;++i){
+        int ptr=1+kd_tree_shift[i];
+        float tmin=999999;
+        float dist=0;
+        float tmax=-999999;
+        int stack[300];
+        int stack_ptr=0;
+        bool empty=false;
+        while(!empty){
             if(BBox_intersection(&kd_tree[ptr].bbox, &ray, &dist, &tmax)){
                 if(tmax>=0){
-                    if(dist>tmin){  // check if bbox closer than the best hit, becouse if it's not, it's impossible for tha bbox to have a triangle closer what we already have
-                        if(stack_ptr==0){
-                            empty=true;
-                        }else{
-                            ptr=stack_pop(stack, &stack_ptr);
-                        }
+                    if(dist>tmin){  // check if bbox closer than the best hit, becouse if it's not, it's impossible for the bbox to have a triangle closer what we already have
+                        stack_check(stack, &stack_ptr, &empty, &ptr);
                     }else if(kd_tree[ptr].trii.x<0){  // check if not leaf
-                        stack_push(stack, &stack_ptr, 2*ptr+1);
-                        ptr=2*ptr;
+                        stack_push(stack, &stack_ptr, 2*(ptr-kd_tree_shift[i])+1+kd_tree_shift[i]);
+                        ptr=2*(ptr-kd_tree_shift[i])+kd_tree_shift[i];
                     }else{  // if leaf, it will contain triangles
-                        hit=first_intersect(tris, kd_tree[ptr].trii.x, kd_tree[ptr].trii.y, ray);   // x and y is from and to indexes, and tris is an orderes array of triangles
+                        hit=first_intersect(tris, kd_tree[ptr].trii.x, kd_tree[ptr].trii.y, ray);   // x and y is from and to indexes, and tris is an ordered array of triangles
                         if(hit.t>0 && (best_hit.t<0 || hit.t<best_hit.t)){ // keep track of the best hit
                             tmin=hit.t;
                             best_hit=hit;
                         }
-                        if(stack_ptr==0){
-                            empty=true;
-                        }else{  // check other nodes
-                            ptr=stack_pop(stack, &stack_ptr);
-                        }
+                        stack_check(stack, &stack_ptr, &empty, &ptr);
                     }
                 }else{
-                    if(stack_ptr==0){
-                        empty=true;
-                    }else{
-                        ptr=stack_pop(stack, &stack_ptr);
-                    }
+                    stack_check(stack, &stack_ptr, &empty, &ptr);
                 }
-            }else if(stack_ptr==0){
-                empty=true;
             }else{
-                ptr=stack_pop(stack, &stack_ptr);
+                stack_check(stack, &stack_ptr, &empty, &ptr);
             }
-        }else{
-            fail=true;
         }
     }
     return best_hit;
@@ -279,7 +275,8 @@ void kernel trace_ray(write_only image2d_t tex,
                         const int tris_size,
                         global const Material* materials,
                         global const Node* kd_tree,
-                        const int kd_tree_size,
+                        global const int* kd_tree_shift,
+                        const int kd_tree_shift_size,
                         global Ray* rays,
                         global float2* rnds,
                         const int iterations,
@@ -300,8 +297,8 @@ void kernel trace_ray(write_only image2d_t tex,
 
     bool in=false;
     for(int current=0; current<iterations; ++current){
-        Hit hit=first_intersect(tris, 0, tris_size, rays[id]);
-        //Hit hit=kd_intersect(tris, kd_tree, kd_tree_size, rays[id]);
+        //Hit hit=first_intersect(tris, 0, tris_size, rays[id]);
+        Hit hit=kd_intersect(tris, kd_tree, kd_tree_shift, kd_tree_shift_size, rays[id]);
 
         if(hit.t>0){
             hit.mat=materials[hit.mati];
@@ -333,9 +330,7 @@ void kernel trace_ray(write_only image2d_t tex,
             if(hit.mat.type==2){                                                                                    // refractive
                 Ray old_ray=rays[id];
                 rand(&rnds[id]);
-                rays[id]=new_ray_refractive(hit, old_ray, in, rnds[id].x);
-                factor_R=factor_R*(1-Fresnel(&hit, &old_ray));
-                in=!in;
+                rays[id]=new_ray_refractive(hit, old_ray, &in, rnds[id].x);
             }
             if(hit.mat.type==3){                                                                                    // emitter
                 rand(&rnds[id]);
@@ -350,6 +345,7 @@ void kernel trace_ray(write_only image2d_t tex,
     colors[id]=(colors[id]*current_sample + color)/(current_sample+1);
     write_imagef(tex, (int2)(get_global_id(0), get_global_id(1)), filmic_tone(colors[id]));
 }
+
 
 void kernel gen_ray(global Ray* rays,
                     const Camera camera,

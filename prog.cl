@@ -58,17 +58,11 @@ typedef struct{
     float XM, YM; //screen width, screen height
 } Camera;
 
-void rand(global float2* seed){
-    int const a = 48271;
-    int const m = 2147483647;
-
-    int s=(int)(((*seed).x*2.0f-1.0f)*m);
-    s = ((long)(s * a))%m;
-    (*seed).x=(s/2147483647.0f+1.0f) / 2.0f;
-
-    s=(int)(((*seed).y*2.0f-1.0f)*m);
-    s = ((long)(s * a))%m;
-    (*seed).y=(s/2147483647.0f+1.0f) / 2.0f;
+float rand(global int* seed){
+    ulong n=(*seed);
+    n=(n*48271)%2147483647;
+    (*seed)=n;
+    return n/2147483647.0f;
 }
 
 void orthonormal_base(const float3* V1, float3* V2, float3* V3){
@@ -112,16 +106,15 @@ Hit init_Hit(){
     return cons_Hit(-1.0f, (float3)(0.0f, 0.0f, 0.0f), (float3)(0.0f, 0.0f, 0.0f), 0);
 }
 
-Ray camera_get_ray(int id, const Camera* cam, float2 rnds){
+Ray camera_get_ray(int id, const Camera* cam, float rnd1, float rnd2){
     int X=cam->XM;
     int Y=cam->YM;
-    float x=id%X+rnds.x;
-    float y=id/X+rnds.y;
+    float x=id%X+rnd1;
+    float y=id/X+rnd2;
     float3 right=cam->right*(2.0f*x/X-1);
     float3 up=cam->up*(2*y/Y-1);
     float3 p=cam->lookat + right + up;
     float3 d=normalize(p-cam->eye);
-    
     return cons_Ray(cam->eye, d);
 }
 
@@ -161,20 +154,18 @@ Hit first_intersect(global const Triangle* tris, const int from, const int to, c
     return best_hit;
 }
 
-void new_ray_diffuse(Hit* hit, float2 rnds, global Ray* ray){
+Ray new_ray_diffuse(Hit hit, float rnd1, float rnd2){
     float3 X,Y,Z;
-    Y=hit->N;
+    Y=hit.N;
     orthonormal_base(&Y,&Z,&X);
-    float rnd1,rnd2,r,theta,x,y,z;
-    rnd1=rnds.x;
-    rnd2=rnds.y;
+    float r,theta,x,y,z;
     r=sqrt(rnd1);
     theta=2*M_PI*rnd2;
     x=r*cos(theta);
     y=r*sin(theta);
     z=sqrt(1-rnd1);
     float3 new_d=normalize(X*x+Y*z+Z*y);
-    (*ray)=cons_Ray(hit->P+Y*0.001f, new_d);
+    return cons_Ray(hit.P+Y*0.001f, new_d);
 }
 
 Ray new_ray_specular(Hit hit, Ray old_ray){
@@ -187,26 +178,42 @@ Ray new_ray_refractive(Hit hit, Ray old_ray, bool* in, float rnd){
     if(*in){
         hit.mat.n=1.0f/hit.mat.n;
     }
-    hit.mat.n=1.0f/hit.mat.n;
     float cosa=dot(-old_ray.D, hit.N);
-    float disc=1.0f - (1.0f - cosa*cosa)*hit.mat.n*hit.mat.n;
-    //float3 F=hit.mat.F0 + ((float3)(1.0f, 1.0f, 1.0f) - hit.mat.F0)*pow(1-cosa, 5);
+    float disc=1.0f - (1.0f - cosa*cosa)/hit.mat.n/hit.mat.n;
     float3 F=Fresnel(&hit, &old_ray);
     float prob=(F.x+F.y+F.z)/3.0f;
-    //printf("%f\n\r",prob);
     if(disc>0 && rnd>prob){
         (*in)=!(*in);
-        return cons_Ray(hit.P - hit.N*0.001f, normalize(old_ray.D*hit.mat.n + hit.N*(cosa*hit.mat.n - sqrt(disc))));
+        float3 P,D;
+        P=hit.P - hit.N*0.001f;
+        D=normalize(old_ray.D/hit.mat.n + hit.N*(cosa/hit.mat.n - sqrt(disc)));
+        return cons_Ray(P, D);
     }else{
-        return cons_Ray(hit.P + hit.N*0.001f, normalize(old_ray.D + hit.N*cosa*2.0f));
+        return new_ray_specular(hit, old_ray);
     }
+}
+
+float3 sRGB(float3 c){
+    float a[3];
+    a[0]=c.x; a[1]=c.y; a[2]=c.z;
+    for(int i=0;i<3;++i){
+        if(a[i]<=0.00304f){
+            a[i]=12.92f*a[i];
+        }else{
+            a[i]=1.055f*pow(a[i],0.4167f)-0.055f;
+        }
+    }
+    return (float3)(a[0], a[1], a[2]);
 }
 
 float4 filmic_tone(float3 c){
     c=max(0.0f, c-0.004f);
     c=(c*(c*6.2f+0.5f))/(c*(c*6.2f+1.7f)+0.06f);
-    c=pow(c, 2.2f);
-    //c=c/(c+1);
+
+    //float L=0.2126f*c.x + 0.7152f*c.y + 0.0722f*c.z;
+    //float L2=L/(1+L);
+    //c=c*L2/L;
+//c=sRGB(c);
     return (float4)(c, 1.0f);
 }
 
@@ -223,14 +230,24 @@ int stack_pop(int* stack, int* ptr){
     }
     return stack[0];
 }
+void stack_check(int* stack, int* stack_ptr, bool* empty, int* ptr){
+    if(*stack_ptr==0){
+        *empty=true;
+    }else{  // check other nodes
+        *ptr=stack_pop(stack, stack_ptr);
+    }
+}
 
-Hit kd_intersect(global const Triangle* tris, global const Node* kd_tree, global const int* kd_tree_shift, const int kd_tree_shift_size, const Ray ray ){
+Hit kd_intersect(global const Triangle* tris,
+                global const Node* kd_tree,
+                global const int* kd_tree_shift,
+                const int kd_tree_shift_size,
+                const Ray ray){
     Hit hit=init_Hit();
     Hit best_hit=init_Hit();
-    
     for(int i=0;i<kd_tree_shift_size;++i){
         int ptr=1+kd_tree_shift[i];
-        float tmin=999999;;
+        float tmin=999999;
         float dist=0;
         float tmax=-999999;
         int stack[300];
@@ -239,38 +256,24 @@ Hit kd_intersect(global const Triangle* tris, global const Node* kd_tree, global
         while(!empty){
             if(BBox_intersection(&kd_tree[ptr].bbox, &ray, &dist, &tmax)){
                 if(tmax>=0){
-                    if(dist>tmin){  // check if bbox closer than the best hit, becouse if it's not, it's impossible for tha bbox to have a triangle closer what we already have
-                        if(stack_ptr==0){
-                            empty=true;
-                        }else{
-                            ptr=stack_pop(stack, &stack_ptr);
-                        }
+                    if(dist>tmin){  // check if bbox closer than the best hit, becouse if it's not, it's impossible for the bbox to have a triangle closer what we already have
+                        stack_check(stack, &stack_ptr, &empty, &ptr);
                     }else if(kd_tree[ptr].trii.x<0){  // check if not leaf
                         stack_push(stack, &stack_ptr, 2*(ptr-kd_tree_shift[i])+1+kd_tree_shift[i]);
                         ptr=2*(ptr-kd_tree_shift[i])+kd_tree_shift[i];
                     }else{  // if leaf, it will contain triangles
-                        hit=first_intersect(tris, kd_tree[ptr].trii.x, kd_tree[ptr].trii.y, ray);   // x and y is from and to indexes, and tris is an orderes array of triangles
+                        hit=first_intersect(tris, kd_tree[ptr].trii.x, kd_tree[ptr].trii.y, ray);   // x and y is from and to indexes, and tris is an ordered array of triangles
                         if(hit.t>0 && (best_hit.t<0 || hit.t<best_hit.t)){ // keep track of the best hit
                             tmin=hit.t;
                             best_hit=hit;
                         }
-                        if(stack_ptr==0){
-                            empty=true;
-                        }else{  // check other nodes
-                            ptr=stack_pop(stack, &stack_ptr);
-                        }
+                        stack_check(stack, &stack_ptr, &empty, &ptr);
                     }
                 }else{
-                    if(stack_ptr==0){
-                        empty=true;
-                    }else{
-                        ptr=stack_pop(stack, &stack_ptr);
-                    }
+                    stack_check(stack, &stack_ptr, &empty, &ptr);
                 }
-            }else if(stack_ptr==0){
-                empty=true;
             }else{
-                ptr=stack_pop(stack, &stack_ptr);
+                stack_check(stack, &stack_ptr, &empty, &ptr);
             }
         }
     }
@@ -285,7 +288,7 @@ void kernel trace_ray(write_only image2d_t tex,
                         global const int* kd_tree_shift,
                         const int kd_tree_shift_size,
                         global Ray* rays,
-                        global float2* rnds,
+                        global int* rnds,
                         const int iterations,
                         const int current_sample,
                         const Camera cam,
@@ -297,12 +300,11 @@ void kernel trace_ray(write_only image2d_t tex,
     float3 factor_S=(float3)(1.0f, 1.0f, 1.0f);
     float3 factor_R=(float3)(1.0f, 1.0f, 1.0f);
     float3 color=(float3)(0.05f, 0.05f, 0.05f);
-    
     if(current_sample==0){
         colors[id]=color;
     }
-
     bool in=false;
+    int cntr=0;
     for(int current=0; current<iterations; ++current){
         Hit hit=first_intersect(tris, 0, tris_size, rays[id]);
         //Hit hit=kd_intersect(tris, kd_tree, kd_tree_shift, kd_tree_shift_size, rays[id]);
@@ -315,10 +317,8 @@ void kernel trace_ray(write_only image2d_t tex,
             if(dot(rays[id].D,hit.N)>0){                                                                                                            // hence the angle between D and N will always be less than 90 degree
                 hit.N=-hit.N;
             }
-            if(hit.mat.type==0){                                                                                    // diffuse
-                rand(&rnds[id]);
-                new_ray_diffuse(&hit, rnds[id], &rays[id]);
-
+            if(hit.mat.type==0){ // diffuse
+                rays[id]=new_ray_diffuse(hit, rand(&rnds[id]), rand(&rnds[id]));
                 float cos_theta=dot(rays[id].D, hit.N);
                 float intensity_diffuse=fmax(0.0f, cos_theta);
                 factor_L=factor_L*(hit.mat.kd*intensity_diffuse);
@@ -327,24 +327,39 @@ void kernel trace_ray(write_only image2d_t tex,
                 float cos_delta=dot(hit.N, halfway);
                 float intensity_specular=fmax(0.0f, cos_delta);
                 factor_B=factor_B*(hit.mat.ks*pow(intensity_specular, hit.mat.shininess));
-                color=color+(float3)(0.05f, 0.05f, 0.05f)*hit.mat.kd;
+                cntr++;
             }
-            if(hit.mat.type==1){                                                                                    // specular
+            if(hit.mat.type==1){// specular
                 Ray old_ray=rays[id];
                 rays[id]=new_ray_specular(hit, old_ray);
                 factor_S=factor_S*Fresnel(&hit, &old_ray);
             }
-            if(hit.mat.type==2){                                                                                    // refractive
+            if(hit.mat.type==2){// refractive
                 Ray old_ray=rays[id];
-                rand(&rnds[id]);
-                rays[id]=new_ray_refractive(hit, old_ray, &in, rnds[id].x);
+                bool before=in;
+                rays[id]=new_ray_refractive(hit, old_ray, &in, rand(&rnds[id]));
+                float3 F=Fresnel(&hit, &old_ray);
+                float prob=(F.x+F.y+F.z)/3.0f;
+                if(before!=in){
+                    factor_R=factor_R*(1-Fresnel(&hit, &old_ray))*(1/(1-prob));
+                }else{
+                    factor_R=factor_R*Fresnel(&hit, &old_ray)*(1/prob);
+                }
             }
             if(hit.mat.type==3){                                                                                    // emitter
-                rand(&rnds[id]);
-                new_ray_diffuse(&hit, rnds[id], &rays[id]);
-                color=color + hit.mat.emission*(factor_L + factor_B)*factor_S*factor_R;
+                float cos_theta=dot(-rays[id].D, hit.N);
+                float intensity=fmax(0.0f, cos_theta);
+                rays[id]=new_ray_diffuse(hit, rand(&rnds[id]), rand(&rnds[id]));
+                color=color + hit.mat.emission*(factor_L + factor_B)*factor_S*factor_R*intensity;
             }
         }else{
+            if(current==0){
+                color=color+(float3)(0.00f, 0.75f, 2.00f)*1;
+            }else if(cntr<=0){
+                color=color+(float3)(0.00f, 0.75f, 2.00f)*(factor_L + factor_B)*factor_S*factor_R;
+            }else{
+                color=color+(float3)(1.00f, 1.00f, 1.00f)*(factor_L + factor_B)*factor_S*factor_R*1;
+            }
             break;
         }
     }
@@ -356,10 +371,9 @@ void kernel trace_ray(write_only image2d_t tex,
 
 void kernel gen_ray(global Ray* rays,
                     const Camera camera,
-                    global float2* rnds){
+                    global int* rnds){
     int id=get_global_id(0);
-    rand(&rnds[id]);
-    rays[id]=camera_get_ray(id, &camera, rnds[id]);
+    rays[id]=camera_get_ray(id, &camera, rand(&rnds[id]), rand(&rnds[id]));
 }
 
 void kernel filt_im(write_only image2d_t tex, global float3* colors){
