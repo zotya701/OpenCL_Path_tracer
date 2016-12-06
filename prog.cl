@@ -4,8 +4,6 @@ typedef struct{
 
 typedef struct{
     int2 trii;
-    int axis;
-    float split;
     BBox bbox;
 } Node;
 
@@ -68,21 +66,17 @@ float rand(global int* seed){
 void orthonormal_base(const float3* V1, float3* V2, float3* V3){
     const float E=0.001f;
     float3 v1,v2,v3;
-    v1=(*V1);v2=(*V2);v3=(*V3);
+    v1=(*V1); v2=(*V2); v3=(*V3);
     if(fabs(v1.x)<=E && fabs(v1.z)<=E){
-        float length=sqrt(v1.y*v1.y + v1.z*v1.z);
-        length=1/length;
+        float rlength=1/sqrt(v1.y*v1.y + v1.z*v1.z);
         v2.x=0;
-        v2.y=-v1.z*length;
-        v2.z=v1.y*length;
-    }
-    else
-    {
-        float length=sqrt(v1.x*v1.x + v1.z*v1.z);
-        length=1/length;
-        v2.x=-v1.z*length;
+        v2.y=-v1.z*rlength;
+        v2.z=v1.y*rlength;
+    }else{
+        float rlength=1/sqrt(v1.x*v1.x + v1.z*v1.z);
+        v2.x=-v1.z*rlength;
         v2.y=0;
-        v2.z=v1.x*length;
+        v2.z=v1.x*rlength;
     }
     v3=cross(v1,v2);
     (*V2)=v2;
@@ -155,6 +149,7 @@ Hit first_intersect(global const Triangle* tris, const int from, const int to, c
 }
 
 Ray new_ray_diffuse(Hit hit, float rnd1, float rnd2){
+    const float E=0.001f;
     float3 X,Y,Z;
     Y=hit.N;
     orthonormal_base(&Y,&Z,&X);
@@ -165,7 +160,7 @@ Ray new_ray_diffuse(Hit hit, float rnd1, float rnd2){
     y=r*sin(theta);
     z=sqrt(1-rnd1);
     float3 new_d=normalize(X*x+Y*z+Z*y);
-    return cons_Ray(hit.P+Y*0.001f, new_d);
+    return cons_Ray(hit.P+Y*E, new_d);
 }
 
 Ray new_ray_specular(Hit hit, Ray old_ray){
@@ -206,15 +201,16 @@ float3 sRGB(float3 c){
     return (float3)(a[0], a[1], a[2]);
 }
 
-float4 filmic_tone(float3 c){
+float4 filmic_tone_map(float3 c){
     c=max(0.0f, c-0.004f);
     c=(c*(c*6.2f+0.5f))/(c*(c*6.2f+1.7f)+0.06f);
-
-    //float L=0.2126f*c.x + 0.7152f*c.y + 0.0722f*c.z;
-    //float L2=L/(1+L);
-    //c=c*L2/L;
-//c=sRGB(c);
     return (float4)(c, 1.0f);
+}
+float4 reinhard_tone_map(float3 c){
+    float L=0.2126f*c.x + 0.7152f*c.y + 0.0722f*c.z;
+    float L2=L/(1+L);
+    c=c*L2/L;
+    return (float4)(sRGB(c), 1.0f);
 }
 
 void stack_push(int* stack, int* ptr, int val){
@@ -346,7 +342,7 @@ void kernel trace_ray(write_only image2d_t tex,
                     factor_R=factor_R*Fresnel(&hit, &old_ray)*(1/prob);
                 }
             }
-            if(hit.mat.type==3){                                                                                    // emitter
+            if(hit.mat.type==3){// emitter
                 float cos_theta=dot(-rays[id].D, hit.N);
                 float intensity=fmax(0.0f, cos_theta);
                 rays[id]=new_ray_diffuse(hit, rand(&rnds[id]), rand(&rnds[id]));
@@ -358,14 +354,14 @@ void kernel trace_ray(write_only image2d_t tex,
             }else if(cntr<=0){
                 color=color+(float3)(0.00f, 0.75f, 2.00f)*(factor_L + factor_B)*factor_S*factor_R;
             }else{
-                color=color+(float3)(1.00f, 1.00f, 1.00f)*(factor_L + factor_B)*factor_S*factor_R*1;
+                color=color+(float3)(1.00f, 1.00f, 1.00f)*(factor_L + factor_B)*factor_S*factor_R;
             }
             break;
         }
     }
 
     colors[id]=(colors[id]*current_sample + color)/(current_sample+1);
-    write_imagef(tex, (int2)(get_global_id(0), get_global_id(1)), filmic_tone(colors[id]));
+    write_imagef(tex, (int2)(get_global_id(0), get_global_id(1)), filmic_tone_map(colors[id]));
 }
 
 
@@ -410,6 +406,6 @@ void kernel filt_im(write_only image2d_t tex, global float3* colors){
             arr[maxi]=temp2;
         }
         float3 med=(float3)(arr[4].x, arr[4].y, arr[4].z);
-        write_imagef(tex, (int2)(x, y), filmic_tone(med));
+        write_imagef(tex, (int2)(x, y), filmic_tone_map(med));
     }
 }
