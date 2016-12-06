@@ -1,13 +1,4 @@
 typedef struct{
-    float3 bl,tr; //bottom left, top right
-} BBox;
-
-typedef struct{
-    int2 trii;
-    BBox bbox;
-} Node;
-
-typedef struct{
     float3 kd,ks,emission,F0;
     float n, shininess;
     int type;
@@ -16,28 +7,6 @@ typedef struct{
 typedef struct{
     float3 P,D; //origin,direction
 } Ray;
-
-bool BBox_intersection(global const BBox* box,
-                        Ray* ray,
-                        float* tmin,
-                        float* tmax){
-    float tx1=(box->bl.x-ray->P.x)/(ray->D.x);
-    float tx2=(box->tr.x-ray->P.x)/(ray->D.x);
-    *tmin=fmin(tx1,tx2);
-    *tmax=fmax(tx1,tx2);
-
-    float ty1=(box->bl.y-ray->P.y)/(ray->D.y);
-    float ty2=(box->tr.y-ray->P.y)/(ray->D.y);
-    *tmin=fmax(*tmin, fmin(ty1,ty2));
-    *tmax=fmin(*tmax, fmax(ty1,ty2));
-
-    float tz1=(box->bl.z-ray->P.z)/(ray->D.z);
-    float tz2=(box->tr.z-ray->P.z)/(ray->D.z);
-    *tmin=fmax(*tmin, fmin(tz1, tz2));
-    *tmax=fmin(*tmax, fmax(tz1, tz2));
-
-    return *tmax>=*tmin;
-}
 
 typedef struct{
     float t;
@@ -52,41 +21,41 @@ typedef struct{
 } Triangle;
 
 typedef struct{
+    float3 bl,tr; //bottom left, top right
+} BBox;
+
+typedef struct{
+    int2 trii;
+    BBox bbox;
+} Node;
+
+typedef struct{
     float3 eye, lookat, up, right;
     float XM, YM; //screen width, screen height
 } Camera;
 
-float rand(global int* seed){
-    ulong n=(*seed);
-    n=(n*48271)%2147483647;
-    (*seed)=n;
-    return n/2147483647.0f;
-}
+Ray cons_Ray(float3 p, float3 d);
+Hit cons_Hit(float t, float3 p, float3 n, ushort mati);
+Hit init_Hit();
+float rand(global int* seed);
+float3 camera_view_dir(Hit hit, const Camera cam);
+Ray camera_get_ray(int id, const Camera* cam, float rnd1, float rnd2);
+Hit triangle_intersect(global const Triangle* tri, const Ray* ray);
+Hit first_intersect(global const Triangle* tris, const int from, const int to, const Ray ray);
+bool BBox_intersection(global const BBox* box, Ray* ray, float* tmin, float* tmax);
+Hit kd_intersect(global const Triangle* tris, global const Node* kd_tree, global const int* kd_tree_shift, const int kd_tree_shift_size, const Ray ray);
+void orthonormal_base(const float3* V1, float3* V2, float3* V3);
+Ray new_ray_diffuse(Hit hit, float rnd1, float rnd2);
+float3 Fresnel(Hit* hit, Ray* old_ray);
+Ray new_ray_specular(Hit hit, Ray old_ray);
+Ray new_ray_refractive(Hit hit, Ray old_ray, bool* in, float rnd);
+float3 sRGB(float3 c);
+float4 filmic_tone_map(float3 c);
+float4 reinhard_tone_map(float3 c);
+void stack_push(int* stack, int* ptr, int val);
+int stack_pop(int* stack, int* ptr);
+void stack_check(int* stack, int* stack_ptr, bool* empty, int* ptr);
 
-void orthonormal_base(const float3* V1, float3* V2, float3* V3){
-    const float E=0.001f;
-    float3 v1,v2,v3;
-    v1=(*V1); v2=(*V2); v3=(*V3);
-    if(fabs(v1.x)<=E && fabs(v1.z)<=E){
-        float rlength=1/sqrt(v1.y*v1.y + v1.z*v1.z);
-        v2.x=0;
-        v2.y=-v1.z*rlength;
-        v2.z=v1.y*rlength;
-    }else{
-        float rlength=1/sqrt(v1.x*v1.x + v1.z*v1.z);
-        v2.x=-v1.z*rlength;
-        v2.y=0;
-        v2.z=v1.x*rlength;
-    }
-    v3=cross(v1,v2);
-    (*V2)=v2;
-    (*V3)=v3;
-}
-
-float3 Fresnel(Hit* hit, Ray* old_ray){
-    float cosa=fabs(dot(hit->N, old_ray->D));
-    return hit->mat.F0 + (1-hit->mat.F0)*pow(1-cosa, 5);
-}
 
 Ray cons_Ray(float3 p, float3 d){
     Ray ray; ray.P=p; ray.D=d; return ray;
@@ -100,6 +69,16 @@ Hit init_Hit(){
     return cons_Hit(-1.0f, (float3)(0.0f, 0.0f, 0.0f), (float3)(0.0f, 0.0f, 0.0f), 0);
 }
 
+float rand(global int* seed){
+    ulong n=(*seed);
+    n=(n*48271)%2147483647;
+    (*seed)=n;
+    return n/2147483647.0f;
+}
+
+float3 camera_view_dir(Hit hit, const Camera cam){
+    return normalize((cam.eye-hit.P));
+}
 Ray camera_get_ray(int id, const Camera* cam, float rnd1, float rnd2){
     int X=cam->XM;
     int Y=cam->YM;
@@ -110,10 +89,6 @@ Ray camera_get_ray(int id, const Camera* cam, float rnd1, float rnd2){
     float3 p=cam->lookat + right + up;
     float3 d=normalize(p-cam->eye);
     return cons_Ray(cam->eye, d);
-}
-
-float3 camera_view_dir(Hit hit, const Camera cam){
-    return normalize((cam.eye-hit.P));
 }
 
 Hit triangle_intersect(global const Triangle* tri, const Ray* ray){
@@ -135,8 +110,6 @@ Hit triangle_intersect(global const Triangle* tri, const Ray* ray){
     }
     return hit;
 }
-
-//Hit first_intersect(global const Triangle* tris, const int tris_size, const Ray ray){
 Hit first_intersect(global const Triangle* tris, const int from, const int to, const Ray ray){
     Hit best_hit=init_Hit();
     for(int i=from; i<to; ++i){
@@ -147,93 +120,27 @@ Hit first_intersect(global const Triangle* tris, const int from, const int to, c
     }
     return best_hit;
 }
+bool BBox_intersection(global const BBox* box,
+                        Ray* ray,
+                        float* tmin,
+                        float* tmax){
+    float tx1=(box->bl.x-ray->P.x)/(ray->D.x);
+    float tx2=(box->tr.x-ray->P.x)/(ray->D.x);
+    *tmin=fmin(tx1,tx2);
+    *tmax=fmax(tx1,tx2);
 
-Ray new_ray_diffuse(Hit hit, float rnd1, float rnd2){
-    const float E=0.001f;
-    float3 X,Y,Z;
-    Y=hit.N;
-    orthonormal_base(&Y,&Z,&X);
-    float r,theta,x,y,z;
-    r=sqrt(rnd1);
-    theta=2*M_PI*rnd2;
-    x=r*cos(theta);
-    y=r*sin(theta);
-    z=sqrt(1-rnd1);
-    float3 new_d=normalize(X*x+Y*z+Z*y);
-    return cons_Ray(hit.P+Y*E, new_d);
-}
+    float ty1=(box->bl.y-ray->P.y)/(ray->D.y);
+    float ty2=(box->tr.y-ray->P.y)/(ray->D.y);
+    *tmin=fmax(*tmin, fmin(ty1,ty2));
+    *tmax=fmin(*tmax, fmax(ty1,ty2));
 
-Ray new_ray_specular(Hit hit, Ray old_ray){
-    float cosa=dot(hit.N, old_ray.D);
-    float3 new_d=normalize(old_ray.D - hit.N*cosa*2.0f);
-    return cons_Ray(hit.P+hit.N*0.001f, new_d);
-}
+    float tz1=(box->bl.z-ray->P.z)/(ray->D.z);
+    float tz2=(box->tr.z-ray->P.z)/(ray->D.z);
+    *tmin=fmax(*tmin, fmin(tz1, tz2));
+    *tmax=fmin(*tmax, fmax(tz1, tz2));
 
-Ray new_ray_refractive(Hit hit, Ray old_ray, bool* in, float rnd){
-    if(*in){
-        hit.mat.n=1.0f/hit.mat.n;
-    }
-    float cosa=dot(-old_ray.D, hit.N);
-    float disc=1.0f - (1.0f - cosa*cosa)/hit.mat.n/hit.mat.n;
-    float3 F=Fresnel(&hit, &old_ray);
-    float prob=(F.x+F.y+F.z)/3.0f;
-    if(disc>0 && rnd>prob){
-        (*in)=!(*in);
-        float3 P,D;
-        P=hit.P - hit.N*0.001f;
-        D=normalize(old_ray.D/hit.mat.n + hit.N*(cosa/hit.mat.n - sqrt(disc)));
-        return cons_Ray(P, D);
-    }else{
-        return new_ray_specular(hit, old_ray);
-    }
+    return *tmax>=*tmin;
 }
-
-float3 sRGB(float3 c){
-    float a[3];
-    a[0]=c.x; a[1]=c.y; a[2]=c.z;
-    for(int i=0;i<3;++i){
-        if(a[i]<=0.00304f){
-            a[i]=12.92f*a[i];
-        }else{
-            a[i]=1.055f*pow(a[i],0.4167f)-0.055f;
-        }
-    }
-    return (float3)(a[0], a[1], a[2]);
-}
-
-float4 filmic_tone_map(float3 c){
-    c=max(0.0f, c-0.004f);
-    c=(c*(c*6.2f+0.5f))/(c*(c*6.2f+1.7f)+0.06f);
-    return (float4)(c, 1.0f);
-}
-float4 reinhard_tone_map(float3 c){
-    float L=0.2126f*c.x + 0.7152f*c.y + 0.0722f*c.z;
-    float L2=L/(1+L);
-    c=c*L2/L;
-    return (float4)(sRGB(c), 1.0f);
-}
-
-void stack_push(int* stack, int* ptr, int val){
-    if((*ptr)<300){
-        stack[*ptr]=val;
-        (*ptr)=(*ptr)+1;
-    }
-}
-int stack_pop(int* stack, int* ptr){
-    if((*ptr)>0){
-        *ptr=*ptr-1;;
-        return stack[*ptr];
-    }
-    return stack[0];
-}
-void stack_check(int* stack, int* stack_ptr, bool* empty, int* ptr){
-    if(*stack_ptr==0){
-        *empty=true;
-    }else{  // check other nodes
-        *ptr=stack_pop(stack, stack_ptr);
-    }
-}
-
 Hit kd_intersect(global const Triangle* tris,
                 global const Node* kd_tree,
                 global const int* kd_tree_shift,
@@ -276,6 +183,112 @@ Hit kd_intersect(global const Triangle* tris,
     return best_hit;
 }
 
+void orthonormal_base(const float3* V1, float3* V2, float3* V3){
+    const float E=0.001f;
+    float3 v1,v2,v3;
+    v1=(*V1); v2=(*V2); v3=(*V3);
+    if(fabs(v1.x)<=E && fabs(v1.z)<=E){
+        float rlength=1/sqrt(v1.y*v1.y + v1.z*v1.z);
+        v2.x=0;
+        v2.y=-v1.z*rlength;
+        v2.z=v1.y*rlength;
+    }else{
+        float rlength=1/sqrt(v1.x*v1.x + v1.z*v1.z);
+        v2.x=-v1.z*rlength;
+        v2.y=0;
+        v2.z=v1.x*rlength;
+    }
+    v3=cross(v1,v2);
+    (*V2)=v2;
+    (*V3)=v3;
+}
+Ray new_ray_diffuse(Hit hit, float rnd1, float rnd2){
+    const float E=0.001f;
+    float3 X,Y,Z;
+    Y=hit.N;
+    orthonormal_base(&Y,&Z,&X);
+    float r,theta,x,y,z;
+    r=sqrt(rnd1);
+    theta=2*M_PI*rnd2;
+    x=r*cos(theta);
+    y=r*sin(theta);
+    z=sqrt(1-rnd1);
+    float3 new_d=normalize(X*x+Y*z+Z*y);
+    return cons_Ray(hit.P+Y*E, new_d);
+}
+float3 Fresnel(Hit* hit, Ray* old_ray){
+    float cosa=fabs(dot(hit->N, old_ray->D));
+    return hit->mat.F0 + (1-hit->mat.F0)*pow(1-cosa, 5);
+}
+Ray new_ray_specular(Hit hit, Ray old_ray){
+    float cosa=dot(hit.N, old_ray.D);
+    float3 new_d=normalize(old_ray.D - hit.N*cosa*2.0f);
+    return cons_Ray(hit.P+hit.N*0.001f, new_d);
+}
+Ray new_ray_refractive(Hit hit, Ray old_ray, bool* in, float rnd){
+    if(*in){
+        hit.mat.n=1.0f/hit.mat.n;
+    }
+    float cosa=dot(-old_ray.D, hit.N);
+    float disc=1.0f - (1.0f - cosa*cosa)/hit.mat.n/hit.mat.n;
+    float3 F=Fresnel(&hit, &old_ray);
+    float prob=(F.x+F.y+F.z)/3.0f;
+    if(disc>0 && rnd>prob){
+        (*in)=!(*in);
+        float3 P,D;
+        P=hit.P - hit.N*0.001f;
+        D=normalize(old_ray.D/hit.mat.n + hit.N*(cosa/hit.mat.n - sqrt(disc)));
+        return cons_Ray(P, D);
+    }else{
+        return new_ray_specular(hit, old_ray);
+    }
+}
+
+float3 sRGB(float3 c){
+    float a[3];
+    a[0]=c.x; a[1]=c.y; a[2]=c.z;
+    for(int i=0;i<3;++i){
+        if(a[i]<=0.00304f){
+            a[i]=12.92f*a[i];
+        }else{
+            a[i]=1.055f*pow(a[i],0.4167f)-0.055f;
+        }
+    }
+    return (float3)(a[0], a[1], a[2]);
+}
+float4 filmic_tone_map(float3 c){
+    c=max(0.0f, c-0.004f);
+    c=(c*(c*6.2f+0.5f))/(c*(c*6.2f+1.7f)+0.06f);
+    return (float4)(c, 1.0f);
+}
+float4 reinhard_tone_map(float3 c){
+    float L=0.2126f*c.x + 0.7152f*c.y + 0.0722f*c.z;
+    float L2=L/(1+L);
+    c=c*L2/L;
+    return (float4)(sRGB(c), 1.0f);
+}
+
+void stack_push(int* stack, int* ptr, int val){
+    if((*ptr)<300){
+        stack[*ptr]=val;
+        (*ptr)=(*ptr)+1;
+    }
+}
+int stack_pop(int* stack, int* ptr){
+    if((*ptr)>0){
+        *ptr=*ptr-1;;
+        return stack[*ptr];
+    }
+    return stack[0];
+}
+void stack_check(int* stack, int* stack_ptr, bool* empty, int* ptr){
+    if(*stack_ptr==0){
+        *empty=true;
+    }else{  // check other nodes
+        *ptr=stack_pop(stack, stack_ptr);
+    }
+}
+
 void kernel trace_ray(write_only image2d_t tex,
                         global const Triangle* tris,
                         const int tris_size,
@@ -310,7 +323,7 @@ void kernel trace_ray(write_only image2d_t tex,
             if(iterations==1){
                 color=hit.mat.kd+hit.mat.emission;
             }
-            if(dot(rays[id].D,hit.N)>0){                                                                                                            // hence the angle between D and N will always be less than 90 degree
+            if(dot(rays[id].D,hit.N)>0){// hence the angle between D and N will always be less than 90 degree
                 hit.N=-hit.N;
             }
             if(hit.mat.type==0){ // diffuse
