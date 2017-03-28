@@ -26,6 +26,7 @@
       <itemPath>Makefile</itemPath>
     </logicalFolder>
     <itemPath>prog.cl</itemPath>
+    <itemPath>tiny_obj_loader.h</itemPath>
   </logicalFolder>
   <projectmakefile>Makefile</projectmakefile>
   <confs>
@@ -60,6 +61,8 @@
       <item path="main.cpp" ex="false" tool="1" flavor2="0">
       </item>
       <item path="prog.cl" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="tiny_obj_loader.h" ex="false" tool="3" flavor2="0">
       </item>
     </conf>
     <conf name="Release" type="1">
@@ -104,6 +107,8 @@
       <item path="main.cpp" ex="false" tool="1" flavor2="0">
       </item>
       <item path="prog.cl" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="tiny_obj_loader.h" ex="false" tool="3" flavor2="0">
       </item>
     </conf>
   </confs>

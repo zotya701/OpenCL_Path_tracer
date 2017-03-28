@@ -188,12 +188,12 @@ void orthonormal_base(const float3* V1, float3* V2, float3* V3){
     float3 v1,v2,v3;
     v1=(*V1); v2=(*V2); v3=(*V3);
     if(fabs(v1.x)<=E && fabs(v1.z)<=E){
-        float rlength=1/sqrt(v1.y*v1.y + v1.z*v1.z);
+        float rlength=1/half_sqrt(v1.y*v1.y + v1.z*v1.z);
         v2.x=0;
         v2.y=-v1.z*rlength;
         v2.z=v1.y*rlength;
     }else{
-        float rlength=1/sqrt(v1.x*v1.x + v1.z*v1.z);
+        float rlength=1/half_sqrt(v1.x*v1.x + v1.z*v1.z);
         v2.x=-v1.z*rlength;
         v2.y=0;
         v2.z=v1.x*rlength;
@@ -208,11 +208,11 @@ Ray new_ray_diffuse(Hit hit, float rnd1, float rnd2){
     Y=hit.N;
     orthonormal_base(&Y,&Z,&X);
     float r,theta,x,y,z;
-    r=sqrt(rnd1);
+    r=half_sqrt(rnd1);
     theta=2*M_PI*rnd2;
     x=r*cos(theta);
     y=r*sin(theta);
-    z=sqrt(1-rnd1);
+    z=half_sqrt(1-rnd1);
     float3 new_d=normalize(X*x+Y*z+Z*y);
     return cons_Ray(hit.P+Y*E, new_d);
 }
@@ -237,7 +237,7 @@ Ray new_ray_refractive(Hit hit, Ray old_ray, bool* in, float rnd){
         (*in)=!(*in);
         float3 P,D;
         P=hit.P - hit.N*0.001f;
-        D=normalize(old_ray.D/hit.mat.n + hit.N*(cosa/hit.mat.n - sqrt(disc)));
+        D=normalize(old_ray.D/hit.mat.n + hit.N*(cosa/hit.mat.n - half_sqrt(disc)));
         return cons_Ray(P, D);
     }else{
         return new_ray_specular(hit, old_ray);
@@ -308,15 +308,15 @@ void kernel trace_ray(write_only image2d_t tex,
     float3 factor_B=(float3)(1.0f, 1.0f, 1.0f);
     float3 factor_S=(float3)(1.0f, 1.0f, 1.0f);
     float3 factor_R=(float3)(1.0f, 1.0f, 1.0f);
-    float3 color=(float3)(0.05f, 0.05f, 0.05f);
+    float3 color=(float3)(0.00f, 0.00f, 0.00f);
     if(current_sample==0){
         colors[id]=color;
     }
     bool in=false;
     int cntr=0;
     for(int current=0; current<iterations; ++current){
-        Hit hit=first_intersect(tris, 0, tris_size, rays[id]);
-        //Hit hit=kd_intersect(tris, kd_tree, kd_tree_shift, kd_tree_shift_size, rays[id]);
+        //Hit hit=first_intersect(tris, 0, tris_size, rays[id]);
+        Hit hit=kd_intersect(tris, kd_tree, kd_tree_shift, kd_tree_shift_size, rays[id]);
 
         if(hit.t>0){
             hit.mat=materials[hit.mati];
@@ -360,21 +360,24 @@ void kernel trace_ray(write_only image2d_t tex,
                 float intensity=fmax(0.0f, cos_theta);
                 rays[id]=new_ray_diffuse(hit, rand(&rnds[id]), rand(&rnds[id]));
                 color=color + hit.mat.emission*(factor_L + factor_B)*factor_S*factor_R*intensity;
+                //if(cntr==0){
+                    //color=color/(max(color.x, max(color.y, color.z)))*20;
+                //}
             }
         }else{
             if(current==0){
-                color=color+(float3)(0.00f, 0.75f, 2.00f)*1;
+                //color=color+(float3)(0.00f, 0.75f, 2.00f)*1;
             }else if(cntr<=0){
-                color=color+(float3)(0.00f, 0.75f, 2.00f)*(factor_L + factor_B)*factor_S*factor_R;
+                //color=color+(float3)(0.00f, 0.75f, 2.00f)*(factor_L + factor_B)*factor_S*factor_R;
             }else{
-                color=color+(float3)(1.00f, 1.00f, 1.00f)*(factor_L + factor_B)*factor_S*factor_R;
+                //color=color+(float3)(1.00f, 1.00f, 1.00f)*(factor_L + factor_B)*factor_S*factor_R;
             }
             break;
         }
     }
 
     colors[id]=(colors[id]*current_sample + color)/(current_sample+1);
-    write_imagef(tex, (int2)(get_global_id(0), get_global_id(1)), filmic_tone_map(colors[id]));
+    write_imagef(tex, (int2)(get_global_id(0), get_global_id(1)), reinhard_tone_map(colors[id]));
 }
 
 
